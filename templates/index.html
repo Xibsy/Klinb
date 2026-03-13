@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Blink Web Pro</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="dark">
+
+    <div id="map"></div>
+
+    <div class="ui-overlay">
+        <header class="top-bar">
+            <div class="profile-btn" onclick="openProfile()">
+                <img src="https://i.pravatar.cc/150?img=3" alt="Avatar" id="nav-avatar">
+                <span id="nav-username">Загрузка...</span>
+            </div>
+            <button class="icon-btn" id="theme-toggle" title="Сменить тему">🌓</button>
+        </header>
+
+        <footer class="bottom-sheet">
+            <div class="friends-scroll" id="friends-list"></div>
+        </footer>
+    </div>
+
+    <div id="profile-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+
+            <div class="profile-edit-header">
+                <div class="avatar-wrapper" onclick="document.getElementById('avatar-input').click()">
+                    <img src="https://i.pravatar.cc/150?img=3" id="edit-avatar">
+                    <div class="edit-overlay">📸</div>
+                </div>
+                <input type="file" id="avatar-input" hidden accept="image/*">
+
+                <input type="text" id="input-name" class="edit-name" placeholder="Твоё Имя">
+                <input type="text" id="input-username" class="edit-username" placeholder="@username">
+            </div>
+
+            <div class="social-section">
+                <div class="input-group">
+                    <span class="icon">💬</span>
+                    <input type="text" id="input-discord" placeholder="Discord ID">
+                </div>
+                <div class="input-group">
+                    <span class="icon">✈️</span>
+                    <input type="text" id="input-telegram" placeholder="Telegram @handle">
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="save-btn" onclick="saveProfile()">Сохранить</button>
+                <button class="close-btn" onclick="closeProfile()">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

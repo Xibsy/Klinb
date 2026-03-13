@@ -1,0 +1,57 @@
+:root {
+    --bg: #ffffff;
+    --text: #101010;
+    --card: #f2f2f7;
+    --accent: #34c759;
+    --blur: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="dark"] {
+    --bg: #121212;
+    --text: #ffffff;
+    --card: #1c1c1e;
+    --accent: #30d158;
+    --blur: rgba(18, 18, 18, 0.8);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); height: 100vh; }
+
+#map { height: 100vh; width: 100vw; z-index: 1; background: var(--bg); }
+
+.ui-overlay { position: absolute; inset: 0; z-index: 1000; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
+.top-bar { padding: 20px; display: flex; justify-content: space-between; pointer-events: auto; }
+
+.profile-btn { background: var(--blur); backdrop-filter: blur(10px); padding: 6px 16px 6px 6px; border-radius: 30px; display: flex; align-items: center; gap: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+.profile-btn img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+.profile-btn span { font-weight: 600; font-size: 14px; }
+
+.icon-btn { width: 46px; height: 46px; border-radius: 50%; border: none; background: var(--blur); backdrop-filter: blur(10px); cursor: pointer; font-size: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); color: var(--text); }
+
+.bottom-sheet { background: var(--blur); backdrop-filter: blur(20px); border-radius: 30px 30px 0 0; padding: 20px; pointer-events: auto; box-shadow: 0 -5px 20px rgba(0,0,0,0.05); }
+.friends-scroll { display: flex; gap: 15px; overflow-x: auto; scrollbar-width: none; }
+.friend-item { min-width: 80px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+.friend-item img { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--accent); padding: 2px; }
+.friend-item span { font-size: 12px; font-weight: 500; }
+
+.modal { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.4); display: none; align-items: flex-end; backdrop-filter: blur(4px); }
+.modal.active { display: flex; }
+.modal-content { background: var(--bg); width: 100%; border-radius: 32px 32px 0 0; padding: 24px; animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1); max-width: 500px; margin: 0 auto; }
+
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+.modal-handle { width: 36px; height: 5px; background: #e5e5ea; border-radius: 10px; margin: 0 auto 24px; }
+.avatar-wrapper { position: relative; width: 110px; height: 110px; margin: 0 auto 16px; }
+.avatar-wrapper img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent); }
+.edit-overlay { position: absolute; bottom: 4px; right: 4px; background: var(--accent); border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid var(--bg); font-size: 14px; }
+
+.edit-name { display: block; width: 100%; border: none; background: transparent; text-align: center; font-size: 24px; font-weight: 700; color: var(--text); }
+.edit-username { display: block; width: 100%; border: none; background: transparent; text-align: center; font-size: 16px; color: var(--accent); margin-bottom: 24px; }
+
+.social-section { background: var(--card); border-radius: 20px; padding: 8px 16px; margin-bottom: 24px; }
+.input-group { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(0,0,0,0.05); }
+.input-group:last-child { border-bottom: none; }
+.input-group input { flex: 1; border: none; background: transparent; padding: 14px 0; color: var(--text); font-size: 16px; }
+
+.save-btn { width: 100%; background: var(--accent); color: white; border: none; padding: 18px; border-radius: 20px; font-weight: 700; font-size: 17px; cursor: pointer; margin-bottom: 8px; }
+.close-btn { width: 100%; background: transparent; color: #8e8e93; border: none; padding: 12px; cursor: pointer; font-size: 15px; }
