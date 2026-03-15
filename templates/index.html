@@ -17,7 +17,10 @@
                 <img src="https://i.pravatar.cc/150?img=3" alt="Avatar" id="nav-avatar">
                 <span id="nav-username">Загрузка...</span>
             </div>
-            <button class="icon-btn" id="theme-toggle" title="Сменить тему">🌓</button>
+            <div class="top-actions">
+                <button class="icon-btn" onclick="addFriendPrompt()" title="Добавить друга">+</button>
+                <button class="icon-btn" id="theme-toggle" title="Сменить тему">🌓</button>
+            </div>
         </header>
 
         <footer class="bottom-sheet">
@@ -29,31 +32,47 @@
         <div class="modal-content">
             <div class="modal-handle"></div>
 
-            <div class="profile-edit-header">
-                <div class="avatar-wrapper" onclick="document.getElementById('avatar-input').click()">
-                    <img src="https://i.pravatar.cc/150?img=3" id="edit-avatar">
-                    <div class="edit-overlay">📸</div>
+            <div id="view-mode">
+                <div class="profile-display">
+                    <img src="" id="display-avatar" class="large-avatar">
+                    <h2 id="display-name">Имя Фамилия</h2>
+                    <p id="display-username">@username</p>
                 </div>
-                <input type="file" id="avatar-input" hidden accept="image/*">
-
-                <input type="text" id="input-name" class="edit-name" placeholder="Твоё Имя">
-                <input type="text" id="input-username" class="edit-username" placeholder="@username">
+                <div class="social-info">
+                    <div class="info-row"><span>💬</span> <span id="display-discord">не указан</span></div>
+                    <div class="info-row"><span>✈️</span> <span id="display-telegram">не указан</span></div>
+                </div>
+                <button class="edit-mode-btn" onclick="toggleEdit(true)">Редактировать профиль</button>
+                <button class="close-btn" onclick="closeProfile()">Закрыть</button>
             </div>
 
-            <div class="social-section">
-                <div class="input-group">
-                    <span class="icon">💬</span>
-                    <input type="text" id="input-discord" placeholder="Discord ID">
-                </div>
-                <div class="input-group">
-                    <span class="icon">✈️</span>
-                    <input type="text" id="input-telegram" placeholder="Telegram @handle">
-                </div>
-            </div>
+            <div id="edit-mode" style="display: none;">
+                <div class="profile-edit-header">
+                    <div class="avatar-wrapper" onclick="document.getElementById('avatar-input').click()">
+                        <img src="" id="edit-avatar">
+                        <div class="edit-overlay">📸</div>
+                    </div>
+                    <input type="file" id="avatar-input" hidden accept="image/*">
 
-            <div class="actions">
-                <button class="save-btn" onclick="saveProfile()">Сохранить</button>
-                <button class="close-btn" onclick="closeProfile()">Отмена</button>
+                    <input type="text" id="input-name" class="edit-input-field name-field" placeholder="Твоё Имя">
+                    <input type="text" id="input-username" class="edit-input-field user-field" placeholder="@username">
+                </div>
+
+                <div class="social-section">
+                    <div class="input-group">
+                        <span class="icon">💬</span>
+                        <input type="text" id="input-discord" placeholder="Discord ID">
+                    </div>
+                    <div class="input-group">
+                        <span class="icon">✈️</span>
+                        <input type="text" id="input-telegram" placeholder="Telegram @handle">
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button class="save-btn" onclick="saveProfile()">Сохранить</button>
+                    <button class="close-btn" onclick="toggleEdit(false)">Отмена</button>
+                </div>
             </div>
         </div>
     </div>
@@ -62,3 +81,6 @@
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
+
+
+

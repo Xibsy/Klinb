@@ -34,6 +34,82 @@ function updateUI() {
     document.getElementById('input-telegram').value = userState.telegram;
 }
 
+function updateUI() {
+    document.body.setAttribute('data-theme', userState.theme);
+
+    // Навигация
+    document.getElementById('nav-avatar').src = userState.avatar;
+    document.getElementById('nav-username').innerText = userState.name;
+
+    // Режим просмотра
+    document.getElementById('display-avatar').src = userState.avatar;
+    document.getElementById('display-name').innerText = userState.name;
+    document.getElementById('display-username').innerText = "@" + userState.username;
+    document.getElementById('display-discord').innerText = userState.discord || "не указан";
+    document.getElementById('display-telegram').innerText = userState.telegram || "не указан";
+
+    // Поля редактирования
+    document.getElementById('edit-avatar').src = userState.avatar;
+    document.getElementById('input-name').value = userState.name;
+    document.getElementById('input-username').value = userState.username;
+    document.getElementById('input-discord').value = userState.discord;
+    document.getElementById('input-telegram').value = userState.telegram;
+}
+
+// Переключение между просмотром и редактированием
+function toggleEdit(isEdit) {
+    document.getElementById('view-mode').style.display = isEdit ? 'none' : 'block';
+    document.getElementById('edit-mode').style.display = isEdit ? 'block' : 'none';
+}
+
+function openProfile() {
+    toggleEdit(false); // Всегда открываем в режиме просмотра
+    document.getElementById('profile-modal').classList.add('active');
+}
+
+function closeProfile() {
+    document.getElementById('profile-modal').classList.remove('active');
+}
+
+function saveProfile() {
+    userState.name = document.getElementById('input-name').value || "Без имени";
+    userState.username = document.getElementById('input-username').value.replace('@', '') || "user";
+    userState.discord = document.getElementById('input-discord').value;
+    userState.telegram = document.getElementById('input-telegram').value;
+
+    localStorage.setItem('blink_user', JSON.stringify(userState));
+    updateUI();
+    toggleEdit(false); // Возвращаемся в режим просмотра
+}
+
+function addFriendPrompt() {
+    const friendName = prompt("Введите имя друга, которого хотите добавить:");
+
+    if (friendName) {
+        // Отправляем POST запрос на сервер Flask
+        fetch('/add_friend', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name: friendName }) // Превращаем данные в строку JSON
+        })
+        .then(response => response.json()) // Ждем ответ в формате JSON
+        .then(data => {
+            if (data.status === 'success') {
+                alert("Ответ сервера: " + data.message);
+                console.log("Успех:", data);
+            } else {
+                alert("Ошибка: " + data.message);
+            }
+        })
+        .catch((error) => {
+            console.error('Ошибка при отправке:', error);
+            alert("Сервер не отвечает. Проверь, запущен ли app.py");
+        });
+    }
+}
+
 // 4. Профиль и сохранение
 function openProfile() {
     document.getElementById('profile-modal').classList.add('active');
