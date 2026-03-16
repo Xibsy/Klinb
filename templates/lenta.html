@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Лента</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f0f0; margin: 0; padding: 20px; }
+        .post { background: white; border-radius: 12px; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .post img { max-width: 100%; border-radius: 12px; margin-top: 10px; }
+        .date { color: #888; font-size: 12px; margin-top: 8px; }
+        .content { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<h1>Лента</h1>
+<a href="/new_post">➕ Создать пост</a>
+<hr>
+{% for post in posts %}
+<div class="post">
+    <div class="content">{{ post.content }}</div>
+    {% if post.image %}
+    <img src="{{ url_for('static', filename='uploads/' + post.image) }}" alt="Post image">
+    {% endif %}
+    <div class="date">{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+</div>
+{% else %}
+<p>Пока нет постов. Будьте первым!</p>
+{% endfor %}
+</body>
+</html>
