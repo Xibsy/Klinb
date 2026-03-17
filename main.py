@@ -3,6 +3,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for
 from werkzeug.utils import secure_filename
 from data.models.user import db, User
 from data.models.post import Post
+from data.utilities.compress_photo import compress_photo
 
 klinb_app = Flask(__name__, static_folder='static')
 
@@ -41,6 +42,7 @@ def new_post():
             filename = f"{name}_{os.urandom(4).hex()}{ext}"
             filepath = os.path.join(klinb_app.config['UPLOAD_FOLDER'], filename)
             image_file.save(filepath)
+            compress_photo(filepath)
 
         new_post = Post(user_id=user_id, content=content, image=filename)
         db.session.add(new_post)
