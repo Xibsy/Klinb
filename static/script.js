@@ -161,7 +161,7 @@ document.getElementById('theme-toggle').onclick = () => {
 // 7. Рендер друзей (с исправленным центрированием иконок)
 const friends = [
     { name: "Алекс", pos: [55.755, 37.62], img: "https://i.pravatar.cc/150?img=11" },
-    { name: "Мария", pos: [55.742, 37.61], img: "https://i.pravatar.cc/150?img=5" }
+    { name: "Мария", pos: [34.742, 37.61], img: "https://i.pravatar.cc/150?img=5" }
 ];
 
 friends.forEach(f => {
