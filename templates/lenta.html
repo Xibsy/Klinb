@@ -7,24 +7,57 @@
         body { font-family: sans-serif; background: #f0f0f0; margin: 0; padding: 20px; }
         .post { background: white; border-radius: 12px; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .post img { max-width: 100%; border-radius: 12px; margin-top: 10px; }
-        .date { color: #888; font-size: 12px; margin-top: 8px; }
         .content { white-space: pre-wrap; }
+        .hashtags { margin-top: 10px; }
+        .hashtag { display: inline-block; background: #e1e1e1; padding: 3px 8px; border-radius: 15px; font-size: 12px; margin-right: 5px; text-decoration: none; color: #34c759; }
+        .nav-links { text-align: center; margin-bottom: 20px; }
+        .nav-links a { margin: 0 10px; color: #34c759; text-decoration: none; }
+        .hashtag-filter { margin-bottom: 20px; text-align: center; }
     </style>
 </head>
 <body>
-<h1>Лента</h1>
-<a href="/new_post">➕ Создать пост</a>
-<hr>
-{% for post in posts %}
-<div class="post">
-    <div class="content">{{ post.content }}</div>
-    {% if post.image %}
-    <img src="{{ url_for('static', filename='uploads/' + post.image) }}" alt="Post image">
+    <div class="nav-links">
+        <a href="/">Карта</a> |
+        <a href="/new_post">➕ Создать пост</a> |
+        <a href="#" onclick="logout()">Выйти</a>
+    </div>
+
+    <h1>Лента</h1>
+
+    {% if hashtag %}
+    <div class="hashtag-filter">
+        🔍 Посты с хэштегом <strong>#{{ hashtag }}</strong>
+        <a href="/lenta" style="margin-left: 10px;">✖ Очистить</a>
+    </div>
     {% endif %}
-    <div class="date">{{ post.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
-</div>
-{% else %}
-<p>Пока нет постов. Будьте первым!</p>
-{% endfor %}
+
+    <hr>
+
+    {% for post in posts %}
+    <div class="post">
+        <div><strong>@{{ post.user.username if post.user else "unknown" }}</strong></div>
+        <div class="content">{{ post.content }}</div>
+        {% if post.image %}
+        <img src="{{ url_for('static', filename='uploads/' + post.image) }}" alt="Post image">
+        {% endif %}
+        <div class="hashtags">
+            {% for tag in post.hashtags %}
+            <a href="/hashtag/{{ tag.name }}" class="hashtag">#{{ tag.name }}</a>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <p>Пока нет постов. Будьте первым!</p>
+    {% endfor %}
+
+    <script>
+        function logout() {
+            fetch('/api/logout', { method: 'POST' })
+                .then(() => {
+                    localStorage.removeItem('blink_user');
+                    window.location.href = '/';
+                });
+        }
+    </script>
 </body>
 </html>

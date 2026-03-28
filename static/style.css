@@ -31,7 +31,7 @@ body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg);
 .bottom-sheet { background: var(--blur); backdrop-filter: blur(20px); border-radius: 30px 30px 0 0; padding: 20px; pointer-events: auto; box-shadow: 0 -5px 20px rgba(0,0,0,0.05); }
 .friends-scroll { display: flex; gap: 15px; overflow-x: auto; scrollbar-width: none; }
 .friend-item { min-width: 80px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
-.friend-item img { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--accent); padding: 2px; }
+.friend-item img { width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--accent); padding: 2px; object-fit: cover; }
 .friend-item span { font-size: 12px; font-weight: 500; }
 
 .modal { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.4); display: none; align-items: flex-end; backdrop-filter: blur(4px); }
@@ -41,9 +41,9 @@ body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg);
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
 .modal-handle { width: 36px; height: 5px; background: #e5e5ea; border-radius: 10px; margin: 0 auto 24px; }
-.avatar-wrapper { position: relative; width: 110px; height: 110px; margin: 0 auto 16px; }
+.avatar-wrapper { position: relative; width: 110px; height: 110px; margin: 0 auto 16px; cursor: pointer; }
 .avatar-wrapper img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent); }
-.edit-overlay { position: absolute; bottom: 4px; right: 4px; background: var(--accent); border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid var(--bg); font-size: 14px; }
+.edit-overlay { position: absolute; bottom: 4px; right: 4px; background: var(--accent); border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 3px solid var(--bg); font-size: 14px; cursor: pointer; }
 
 .edit-name { display: block; width: 100%; border: none; background: transparent; text-align: center; font-size: 24px; font-weight: 700; color: var(--text); }
 .edit-username { display: block; width: 100%; border: none; background: transparent; text-align: center; font-size: 16px; color: var(--accent); margin-bottom: 24px; }

@@ -9,11 +9,21 @@
         label { display: block; margin-top: 10px; }
         input, textarea, select { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 5px; }
         button { margin-top: 20px; padding: 10px 20px; background: #34c759; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .nav-links { text-align: center; margin-bottom: 20px; }
+        .nav-links a { margin: 0 10px; color: #34c759; text-decoration: none; }
     </style>
 </head>
 <body>
+    <div class="nav-links">
+        <a href="/">Карта</a> |
+        <a href="/lenta">Лента</a> |
+        <a href="#" onclick="logout()">Выйти</a>
+    </div>
+
     <form method="POST" enctype="multipart/form-data">
         <h2>Создать пост</h2>
+
+        <p><small>Подсказка: используйте #хештеги для группировки постов</small></p>
 
         <label>Выберите пользователя:</label>
         <select name="user_id" required>
@@ -24,13 +34,22 @@
         </select>
 
         <label>Текст:</label>
-        <textarea name="content" rows="4" placeholder="Что у вас нового?" required></textarea>
+        <textarea name="content" rows="4" placeholder="Что у вас нового? Используйте #хештеги" required></textarea>
 
         <label>Фото (необязательно):</label>
         <input type="file" name="image" accept="image/*">
 
         <button type="submit">Опубликовать</button>
     </form>
-    <p style="text-align: center;"><a href="/lenta">Перейти к ленте</a></p>
+
+    <script>
+        function logout() {
+            fetch('/api/logout', { method: 'POST' })
+                .then(() => {
+                    localStorage.removeItem('blink_user');
+                    window.location.href = '/';
+                });
+        }
+    </script>
 </body>
 </html>

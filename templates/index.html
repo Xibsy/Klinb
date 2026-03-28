@@ -14,13 +14,14 @@
     <div class="ui-overlay">
         <header class="top-bar">
             <div class="profile-btn" onclick="openProfile()">
-                <img src="https://i.pravatar.cc/150?img=3" alt="Avatar" id="nav-avatar">
+                <img src="/static/uploads/volosatic.jpg" alt="Avatar" id="nav-avatar">
                 <span id="nav-username">Загрузка...</span>
             </div>
             <div class="top-actions">
                 <button class="icon-btn" onclick="addFriendPrompt()" title="Добавить друга">+</button>
                 <button class="icon-btn" id="theme-toggle" title="Сменить тему">🌓</button>
-                <button class="icon-btn" onclick="location.href='/lenta'" title="Лента">💩</button>
+                <button class="icon-btn" onclick="location.href='/lenta'" title="Лента">📰</button>
+                <button class="icon-btn" onclick="logout()" title="Выйти">🚪</button>
             </div>
         </header>
 
@@ -82,6 +83,3 @@
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
-
-
-
