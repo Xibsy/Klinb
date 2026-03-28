@@ -36,19 +36,18 @@ async function checkAuth() {
     }
 }
 
-// 4. Показать модалку регистрации
 function showAuthModal() {
     const modal = document.createElement('div');
     modal.className = 'modal active';
     modal.innerHTML = `
         <div class="modal-content" style="max-width: 350px;">
             <div class="modal-handle"></div>
-            <h3 style="text-align: center;">Добро пожаловать в Blink!</h3>
+            <h3 style="text-align: center;">Добро пожаловать в klinb! 100% оригинал</h3>
             <div id="auth-form">
                 <input type="text" id="auth-name" placeholder="Ваше имя" class="edit-input-field" style="margin-bottom: 10px;">
                 <input type="text" id="auth-username" placeholder="@username" class="edit-input-field" style="margin-bottom: 10px;">
-                <input type="text" id="auth-discord" placeholder="Discord (необязательно)" class="edit-input-field" style="margin-bottom: 10px;">
-                <input type="text" id="auth-telegram" placeholder="Telegram (необязательно)" class="edit-input-field" style="margin-bottom: 20px;">
+                <input type="text" id="auth-discord" placeholder="Discord (необязательно, но лучше заполнить)" class="edit-input-field" style="margin-bottom: 10px;">
+                <input type="text" id="auth-telegram" placeholder="Telegram (необязательно, но лучше заполнить)" class="edit-input-field" style="margin-bottom: 20px;">
                 <button onclick="registerUser()" class="save-btn">Создать аккаунт</button>
                 <button onclick="closeAuthModal()" class="close-btn">Закрыть</button>
             </div>
@@ -65,7 +64,6 @@ function closeAuthModal() {
     }
 }
 
-// 5. Регистрация
 async function registerUser() {
     const name = document.getElementById('auth-name')?.value;
     const username = document.getElementById('auth-username')?.value;
@@ -80,7 +78,7 @@ async function registerUser() {
     const userData = {
         name: name,
         username: username.replace('@', ''),
-        avatar: "/static/uploads/volosatic.jpg",  // базовое фото
+        avatar: "/static/uploads/volosatic.jpg",
         discord: discord,
         telegram: telegram
     };
