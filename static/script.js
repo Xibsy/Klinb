@@ -1,3 +1,5 @@
+// ─── STATE ────────────────────────────────────────────────────────────────────
+
 const DEFAULT_STATE = {
     name: "",
     username: "",
@@ -7,81 +9,211 @@ const DEFAULT_STATE = {
     theme: "dark"
 };
 
-let userState = JSON.parse(localStorage.getItem('blink_user')) || DEFAULT_STATE;
+let userState = { ...DEFAULT_STATE };
+try {
+    const saved = localStorage.getItem('blink_user');
+    if (saved) {
+        const parsed = JSON.parse(saved);
+        // Не восстанавливаем base64 аватар из localStorage — только URL
+        if (parsed.avatar && parsed.avatar.startsWith('data:')) {
+            parsed.avatar = DEFAULT_STATE.avatar;
+        }
+        userState = { ...DEFAULT_STATE, ...parsed };
+    }
+} catch (e) {
+    console.warn('Failed to parse localStorage state:', e);
+}
+
 let isAuthenticated = false;
 
-// 2. Карта
-const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([55.7512, 37.6184], 13);
+// ─── MAP ──────────────────────────────────────────────────────────────────────
+
+const map = L.map('map', { zoomControl: false, attributionControl: false })
+    .setView([55.7512, 37.6184], 13);
+
 const layers = {
     light: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'),
-    dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png')
+    dark:  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png')
 };
+
 layers[userState.theme].addTo(map);
 
-// 3. Проверка авторизации
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+
 async function checkAuth() {
     try {
         const response = await fetch('/api/current_user');
         const data = await response.json();
         if (data.status === 'success' && data.user) {
             isAuthenticated = true;
+            // Мержим данные с сервера, не перезаписывая тему
             userState = { ...userState, ...data.user };
-            localStorage.setItem('blink_user', JSON.stringify(userState));
+            saveStateLocally();
             updateUI();
+            loadFriends();
         } else {
             showAuthModal();
         }
     } catch (error) {
         console.error('Auth error:', error);
+        showAuthModal();
     }
 }
 
 function showAuthModal() {
     const modal = document.createElement('div');
     modal.className = 'modal active';
+    modal.id = 'auth-modal';
     modal.innerHTML = `
-        <div class="modal-content" style="max-width: 350px;">
+        <div class="modal-content auth-modal-content">
             <div class="modal-handle"></div>
-            <h3 style="text-align: center;">Добро пожаловать в klinb! 100% оригинал</h3>
-            <div id="auth-form">
-                <input type="text" id="auth-name" placeholder="Ваше имя" class="edit-input-field" style="margin-bottom: 10px;">
-                <input type="text" id="auth-username" placeholder="@username" class="edit-input-field" style="margin-bottom: 10px;">
-                <input type="text" id="auth-discord" placeholder="Discord (необязательно, но лучше заполнить)" class="edit-input-field" style="margin-bottom: 10px;">
-                <input type="text" id="auth-telegram" placeholder="Telegram (необязательно, но лучше заполнить)" class="edit-input-field" style="margin-bottom: 20px;">
-                <button onclick="registerUser()" class="save-btn">Создать аккаунт</button>
-                <button onclick="closeAuthModal()" class="close-btn">Закрыть</button>
-            </div>
+            <h2 class="auth-title">Добро пожаловать 👋</h2>
+            <p class="auth-subtitle">Создайте аккаунт, чтобы начать</p>
+
+            <input type="text" id="auth-name"     class="edit-input-field" placeholder="Ваше имя">
+            <input type="text" id="auth-username" class="edit-input-field" placeholder="@username">
+            <div id="auth-username-error" class="field-error"></div>
+            <input type="text" id="auth-discord"  class="edit-input-field" placeholder="Discord (необязательно)">
+            <input type="text" id="auth-telegram" class="edit-input-field" placeholder="Telegram (необязательно)">
+
+            <button onclick="registerUser()" class="save-btn">Создать аккаунт</button>
+            <button onclick="closeAuthModal()" class="close-btn">Пропустить</button>
         </div>
     `;
     document.body.appendChild(modal);
-    window.authModal = modal;
 }
 
 function closeAuthModal() {
-    if (window.authModal) {
-        window.authModal.remove();
-        window.authModal = null;
+    document.getElementById('auth-modal')?.remove();
+}
+
+function showAuthModal(mode = 'register') {
+    // Удаляем старую модалку, если есть
+    const existing = document.getElementById('auth-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal active';
+    modal.id = 'auth-modal';
+
+    const isRegister = mode === 'register';
+    const title = isRegister ? 'Создать аккаунт' : 'Войти в профиль';
+    const subtitle = isRegister ? 'Заполните данные для регистрации' : 'Введите ваш @username';
+
+    modal.innerHTML = `
+        <div class="modal-content auth-modal-content">
+            <div class="modal-handle"></div>
+            <h2 class="auth-title">${title}</h2>
+            <p class="auth-subtitle">${subtitle}</p>
+
+            <div id="auth-fields">
+                ${isRegister ? `
+                    <input type="text" id="auth-name" class="edit-input-field" placeholder="Ваше имя">
+                    <input type="text" id="auth-username" class="edit-input-field" placeholder="@username">
+                    <div id="auth-username-error" class="field-error"></div>
+                    <input type="text" id="auth-discord" class="edit-input-field" placeholder="Discord (необязательно)">
+                    <input type="text" id="auth-telegram" class="edit-input-field" placeholder="Telegram (необязательно)">
+                ` : `
+                    <input type="text" id="login-username" class="edit-input-field" placeholder="@username">
+                    <div id="login-error" class="field-error"></div>
+                `}
+            </div>
+
+            <button id="auth-action-btn" class="save-btn">${isRegister ? 'Создать аккаунт' : 'Войти'}</button>
+            <button class="close-btn" onclick="closeAuthModal()">Пропустить</button>
+
+            <div class="auth-toggle">
+                ${isRegister ?
+                    '<span>Уже есть аккаунт? <a href="#" onclick="switchAuthMode(\'login\'); return false;">Войти</a></span>' :
+                    '<span>Нет аккаунта? <a href="#" onclick="switchAuthMode(\'register\'); return false;">Зарегистрироваться</a></span>'
+                }
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Навешиваем обработчик на кнопку действия
+    const actionBtn = document.getElementById('auth-action-btn');
+    if (actionBtn) {
+        actionBtn.onclick = () => {
+            if (mode === 'register') registerUser();
+            else loginUser();
+        };
+    }
+}
+
+function switchAuthMode(mode) {
+    showAuthModal(mode);
+}
+
+async function loginUser() {
+    const usernameInput = document.getElementById('login-username');
+    const username = usernameInput?.value.trim().replace('@', '');
+    const errorEl = document.getElementById('login-error');
+
+    if (!username) {
+        if (errorEl) errorEl.textContent = 'Укажите username';
+        return;
+    }
+    if (errorEl) errorEl.textContent = '';
+
+    const actionBtn = document.getElementById('auth-action-btn');
+    if (actionBtn) {
+        actionBtn.disabled = true;
+        actionBtn.textContent = 'Вход...';
+    }
+
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+        });
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            userState = { ...userState, ...data.user };
+            saveStateLocally();
+            isAuthenticated = true;
+            updateUI();
+            closeAuthModal();
+            loadFriends();
+            showToast(`С возвращением, ${userState.name || username}!`);
+        } else {
+            if (errorEl) errorEl.textContent = data.message || 'Пользователь не найден';
+            showToast('Ошибка входа: ' + (data.message || 'неверный username'));
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        if (errorEl) errorEl.textContent = 'Ошибка соединения';
+        showToast('Не удалось подключиться к серверу');
+    } finally {
+        if (actionBtn) {
+            actionBtn.disabled = false;
+            actionBtn.textContent = 'Войти';
+        }
     }
 }
 
 async function registerUser() {
-    const name = document.getElementById('auth-name')?.value;
-    const username = document.getElementById('auth-username')?.value;
-    const discord = document.getElementById('auth-discord')?.value;
-    const telegram = document.getElementById('auth-telegram')?.value;
+    const name     = document.getElementById('auth-name')?.value.trim();
+    const username = document.getElementById('auth-username')?.value.trim().replace('@', '');
+    const discord  = document.getElementById('auth-discord')?.value.trim();
+    const telegram = document.getElementById('auth-telegram')?.value.trim();
 
-    if (!name || !username) {
-        alert("Укажите имя и username");
+    const errorEl = document.getElementById('auth-username-error');
+
+    if (!name) { showToast('Укажите имя'); return; }
+
+    const usernameErr = validateUsername(username);
+    if (usernameErr) {
+        if (errorEl) errorEl.textContent = usernameErr;
         return;
     }
+    if (errorEl) errorEl.textContent = '';
 
-    const userData = {
-        name: name,
-        username: username.replace('@', ''),
-        avatar: "/static/uploads/volosatic.jpg",
-        discord: discord,
-        telegram: telegram
-    };
+    const userData = { name, username, avatar: DEFAULT_STATE.avatar, discord, telegram };
 
     try {
         const response = await fetch('/api/register', {
@@ -92,199 +224,345 @@ async function registerUser() {
         const data = await response.json();
         if (data.status === 'success') {
             userState = { ...userState, ...data.user };
-            localStorage.setItem('blink_user', JSON.stringify(userState));
+            saveStateLocally();
             isAuthenticated = true;
             updateUI();
             closeAuthModal();
-            alert("Регистрация успешна!");
+            loadFriends();
+            showToast('Добро пожаловать!');
         } else {
-            alert("Ошибка: " + data.message);
+            showToast('Ошибка: ' + data.message);
         }
     } catch (error) {
         console.error('Registration error:', error);
-        alert("Ошибка подключения к серверу");
+        showToast('Ошибка подключения к серверу');
     }
 }
 
-// 6. Обновление UI
+// ─── VALIDATION ───────────────────────────────────────────────────────────────
+
+function validateUsername(username) {
+    if (!username) return 'Укажите username';
+    if (username.length < 3)  return 'Минимум 3 символа';
+    if (username.length > 32) return 'Максимум 32 символа';
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) return 'Только латинские буквы, цифры и _';
+    return null;
+}
+
+// ─── UI ───────────────────────────────────────────────────────────────────────
+
 function updateUI() {
     document.body.setAttribute('data-theme', userState.theme);
 
-    const navAvatar = document.getElementById('nav-avatar');
+    const navAvatar   = document.getElementById('nav-avatar');
     const navUsername = document.getElementById('nav-username');
-    if (navAvatar) navAvatar.src = userState.avatar;
-    if (navUsername) navUsername.innerText = userState.name || "Гость";
+    if (navAvatar)   navAvatar.src     = userState.avatar;
+    if (navUsername) navUsername.textContent = userState.name || 'Гость';
 
-    const displayAvatar = document.getElementById('display-avatar');
-    const displayName = document.getElementById('display-name');
+    const displayAvatar   = document.getElementById('display-avatar');
+    const displayName     = document.getElementById('display-name');
     const displayUsername = document.getElementById('display-username');
-    const displayDiscord = document.getElementById('display-discord');
+    const displayDiscord  = document.getElementById('display-discord');
     const displayTelegram = document.getElementById('display-telegram');
 
-    if (displayAvatar) displayAvatar.src = userState.avatar;
-    if (displayName) displayName.innerText = userState.name || "Гость";
-    if (displayUsername) displayUsername.innerText = "@" + (userState.username || "user");
-    if (displayDiscord) displayDiscord.innerText = userState.discord || "не указан";
-    if (displayTelegram) displayTelegram.innerText = userState.telegram || "не указан";
+    if (displayAvatar)   displayAvatar.src          = userState.avatar;
+    if (displayName)     displayName.textContent     = userState.name     || 'Гость';
+    if (displayUsername) displayUsername.textContent = '@' + (userState.username || 'user');
+    if (displayDiscord)  displayDiscord.textContent  = userState.discord  || 'не указан';
+    if (displayTelegram) displayTelegram.textContent = userState.telegram || 'не указан';
 
-    const editAvatar = document.getElementById('edit-avatar');
-    const inputName = document.getElementById('input-name');
+    const editAvatar    = document.getElementById('edit-avatar');
+    const inputName     = document.getElementById('input-name');
     const inputUsername = document.getElementById('input-username');
-    const inputDiscord = document.getElementById('input-discord');
+    const inputDiscord  = document.getElementById('input-discord');
     const inputTelegram = document.getElementById('input-telegram');
 
-    if (editAvatar) editAvatar.src = userState.avatar;
-    if (inputName) inputName.value = userState.name;
-    if (inputUsername) inputUsername.value = userState.username;
-    if (inputDiscord) inputDiscord.value = userState.discord;
-    if (inputTelegram) inputTelegram.value = userState.telegram;
+    if (editAvatar)    editAvatar.src        = userState.avatar;
+    if (inputName)     inputName.value       = userState.name;
+    if (inputUsername) inputUsername.value   = userState.username;
+    if (inputDiscord)  inputDiscord.value    = userState.discord;
+    if (inputTelegram) inputTelegram.value   = userState.telegram;
 }
 
-// 7. Профиль
+// ─── PROFILE ──────────────────────────────────────────────────────────────────
+
 function toggleEdit(isEdit) {
-    const viewMode = document.getElementById('view-mode');
-    const editMode = document.getElementById('edit-mode');
-    if (viewMode) viewMode.style.display = isEdit ? 'none' : 'block';
-    if (editMode) editMode.style.display = isEdit ? 'block' : 'none';
+    document.getElementById('view-mode').style.display = isEdit ? 'none'  : 'block';
+    document.getElementById('edit-mode').style.display = isEdit ? 'block' : 'none';
+    // Сбросить ошибки при переключении
+    const errEl = document.getElementById('username-error');
+    if (errEl) errEl.textContent = '';
 }
 
 function openProfile() {
-    if (!isAuthenticated) {
-        showAuthModal();
-        return;
-    }
+    if (!isAuthenticated) { showAuthModal(); return; }
     toggleEdit(false);
-    const modal = document.getElementById('profile-modal');
-    if (modal) modal.classList.add('active');
+    document.getElementById('profile-modal')?.classList.add('active');
 }
 
 function closeProfile() {
-    const modal = document.getElementById('profile-modal');
-    if (modal) modal.classList.remove('active');
+    document.getElementById('profile-modal')?.classList.remove('active');
 }
 
 async function saveProfile() {
-    if (!isAuthenticated) {
-        showAuthModal();
+    if (!isAuthenticated) { showAuthModal(); return; }
+
+    const name     = document.getElementById('input-name').value.trim() || 'Без имени';
+    const username = document.getElementById('input-username').value.trim().replace('@', '');
+    const discord  = document.getElementById('input-discord').value.trim();
+    const telegram = document.getElementById('input-telegram').value.trim();
+    const errorEl  = document.getElementById('username-error');
+
+    const usernameErr = validateUsername(username);
+    if (usernameErr) {
+        if (errorEl) errorEl.textContent = usernameErr;
         return;
     }
+    if (errorEl) errorEl.textContent = '';
 
-    userState.name = document.getElementById('input-name').value || "Без имени";
-    userState.username = document.getElementById('input-username').value.replace('@', '') || "user";
-    userState.discord = document.getElementById('input-discord').value;
-    userState.telegram = document.getElementById('input-telegram').value;
+    const saveBtn = document.getElementById('save-btn');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Сохранение...'; }
+
+    const payload = { name, username, discord, telegram, avatar: userState.avatar };
 
     try {
-        const response = await fetch('/api/register', {
-            method: 'POST',
+        // Отдельный эндпоинт для обновления профиля (не /api/register)
+        const response = await fetch('/api/profile', {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userState)
+            body: JSON.stringify(payload)
         });
 
         if (response.ok) {
-            localStorage.setItem('blink_user', JSON.stringify(userState));
+            userState = { ...userState, name, username, discord, telegram };
+            saveStateLocally();
             updateUI();
             toggleEdit(false);
+            showToast('Профиль сохранён');
         } else {
-            alert("Ошибка сохранения профиля");
+            const data = await response.json().catch(() => ({}));
+            showToast('Ошибка: ' + (data.message || 'попробуйте снова'));
         }
     } catch (error) {
         console.error('Save error:', error);
+        showToast('Ошибка подключения');
+    } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Сохранить'; }
     }
 }
 
-function addFriendPrompt() {
-    if (!isAuthenticated) {
-        showAuthModal();
+// ─── AVATAR UPLOAD ────────────────────────────────────────────────────────────
+
+document.getElementById('avatar-input')?.addEventListener('change', async function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const statusEl = document.getElementById('avatar-upload-status');
+
+    if (file.size > 2 * 1024 * 1024) {
+        if (statusEl) { statusEl.textContent = 'Файл слишком большой (макс. 2 МБ)'; statusEl.className = 'upload-status error'; }
         return;
     }
 
-    const friendName = prompt("Введите имя друга, которого хотите добавить:");
-    if (friendName) {
-        fetch('/add_friend', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: friendName })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === 'success') {
-                alert("Ответ сервера: " + data.message);
-            } else {
-                alert("Ошибка: " + data.message);
-            }
-        })
-        .catch((error) => {
-            console.error('Ошибка:', error);
-            alert("Сервер не отвечает");
-        });
+    if (statusEl) { statusEl.textContent = 'Загрузка...'; statusEl.className = 'upload-status'; }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    try {
+        const response = await fetch('/api/upload_avatar', { method: 'POST', body: formData });
+        const data = await response.json();
+
+        if (response.ok && data.avatar_url) {
+            // Сохраняем только URL, не base64
+            userState.avatar = data.avatar_url;
+            const editAvatar = document.getElementById('edit-avatar');
+            if (editAvatar) editAvatar.src = data.avatar_url;
+            if (statusEl) { statusEl.textContent = '✓ Фото обновлено'; statusEl.className = 'upload-status'; }
+        } else {
+            if (statusEl) { statusEl.textContent = data.message || 'Ошибка загрузки'; statusEl.className = 'upload-status error'; }
+        }
+    } catch (err) {
+        console.error('Avatar upload error:', err);
+        if (statusEl) { statusEl.textContent = 'Ошибка соединения'; statusEl.className = 'upload-status error'; }
+    }
+
+    // Очищаем input для повторного выбора того же файла
+    e.target.value = '';
+});
+
+// ─── ADD FRIEND MODAL ─────────────────────────────────────────────────────────
+
+function openAddFriendModal() {
+    if (!isAuthenticated) { showAuthModal(); return; }
+    document.getElementById('friend-search-input').value = '';
+    document.getElementById('friend-search-result').innerHTML = '';
+    document.getElementById('add-friend-modal')?.classList.add('active');
+}
+
+function closeAddFriendModal() {
+    document.getElementById('add-friend-modal')?.classList.remove('active');
+}
+
+async function searchAndAddFriend() {
+    const query   = document.getElementById('friend-search-input')?.value.trim().replace('@', '');
+    const resultEl = document.getElementById('friend-search-result');
+
+    if (!query) { showToast('Введите имя или username'); return; }
+
+    resultEl.innerHTML = '<span>Поиск...</span>';
+
+    try {
+        const response = await fetch(`/api/find_user?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+
+        if (data.status === 'success' && data.user) {
+            const u = data.user;
+            resultEl.innerHTML = `
+                <div class="friend-found-card">
+                    <img src="${escapeHtml(u.avatar || DEFAULT_STATE.avatar)}" alt="">
+                    <div class="info">
+                        <b>${escapeHtml(u.name)}</b>
+                        <span>@${escapeHtml(u.username)}</span>
+                    </div>
+                    <button class="save-btn" style="width:auto;padding:10px 18px;font-size:14px;"
+                        onclick="confirmAddFriend('${escapeHtml(u.username)}')">
+                        Добавить
+                    </button>
+                </div>
+            `;
+        } else {
+            resultEl.innerHTML = '<span>Пользователь не найден</span>';
+        }
+    } catch (err) {
+        console.error('Search error:', err);
+        resultEl.innerHTML = '<span>Ошибка соединения</span>';
     }
 }
 
+async function confirmAddFriend(username) {
+    try {
+        const response = await fetch('/api/add_friend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+        });
+        const data = await response.json();
+        if (data.status === 'success') {
+            showToast('Запрос отправлен!');
+            closeAddFriendModal();
+        } else {
+            showToast('Ошибка: ' + data.message);
+        }
+    } catch (err) {
+        console.error('Add friend error:', err);
+        showToast('Ошибка соединения');
+    }
+}
+
+// ─── FRIENDS LIST ─────────────────────────────────────────────────────────────
+
+async function loadFriends() {
+    try {
+        const response = await fetch('/api/friends');
+        const data = await response.json();
+        if (data.status === 'success' && Array.isArray(data.friends)) {
+            renderFriends(data.friends);
+        }
+    } catch (err) {
+        console.warn('Could not load friends:', err);
+        // Фолбек на демо-данные в dev-режиме
+        renderFriends([
+            { name: "Алекс", pos: [55.755, 37.62], avatar: "/static/uploads/koliman.jpg" },
+            { name: "Мария", pos: [55.742, 37.61], avatar: "/static/uploads/koliman.jpg" }
+        ]);
+    }
+}
+
+function renderFriends(friends) {
+    const listEl = document.getElementById('friends-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    friends.forEach(f => {
+        const pos = f.pos || f.position;
+
+        // Маркер на карте
+        if (pos) {
+            const icon = L.divIcon({
+                className: 'map-avatar-wrapper',
+                html: `<img src="${escapeHtml(f.avatar)}" class="map-avatar-img" alt="${escapeHtml(f.name)}">`,
+                iconSize: [46, 46],
+                iconAnchor: [23, 23]
+            });
+            L.marker(pos, { icon }).addTo(map).bindPopup(`<b>${escapeHtml(f.name)}</b>`);
+        }
+
+        // Карточка в bottom sheet
+        const card = document.createElement('div');
+        card.className = 'friend-item';
+        card.innerHTML = `<img src="${escapeHtml(f.avatar)}" alt="${escapeHtml(f.name)}"><span>${escapeHtml(f.name)}</span>`;
+        if (pos) card.onclick = () => map.flyTo(pos, 15, { duration: 1.5 });
+        listEl.appendChild(card);
+    });
+}
+
+// ─── THEME ────────────────────────────────────────────────────────────────────
+
+document.getElementById('theme-toggle')?.addEventListener('click', () => {
+    map.removeLayer(layers[userState.theme]);
+    userState.theme = userState.theme === 'dark' ? 'light' : 'dark';
+    layers[userState.theme].addTo(map);
+    updateUI();
+    saveStateLocally();
+});
+
+// ─── LOGOUT ───────────────────────────────────────────────────────────────────
+
 function logout() {
     fetch('/api/logout', { method: 'POST' })
-        .then(() => {
+        .finally(() => {
             localStorage.removeItem('blink_user');
             isAuthenticated = false;
             window.location.reload();
         });
 }
 
-// 8. Загрузка фото
-document.getElementById('avatar-input')?.addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file && file.size > 2 * 1024 * 1024) {
-        alert("Файл слишком большой! Выбери фото до 2МБ.");
-        return;
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+
+function saveStateLocally() {
+    // Никогда не сохраняем base64 в localStorage
+    const toSave = { ...userState };
+    if (toSave.avatar?.startsWith('data:')) toSave.avatar = DEFAULT_STATE.avatar;
+    try {
+        localStorage.setItem('blink_user', JSON.stringify(toSave));
+    } catch (e) {
+        console.warn('localStorage write failed:', e);
     }
-    const reader = new FileReader();
-    reader.onload = function() {
-        userState.avatar = reader.result;
-        const editAvatar = document.getElementById('edit-avatar');
-        if (editAvatar) editAvatar.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-});
+}
 
-// 9. Смена темы
-document.getElementById('theme-toggle')?.addEventListener('click', () => {
-    map.removeLayer(layers[userState.theme]);
-    userState.theme = userState.theme === 'dark' ? 'light' : 'dark';
-    layers[userState.theme].addTo(map);
-    updateUI();
-    localStorage.setItem('blink_user', JSON.stringify(userState));
-});
+function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 
-// 10. Друзья
-const friends = [
-    { name: "Алекс", pos: [55.755, 37.62], img: "/static/uploads/koliman.jpg" },
-    { name: "Мария", pos: [55.742, 37.61], img: "/static/uploads/koliman.jpg" }
-];
+function showToast(message) {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
 
-friends.forEach(f => {
-    const customIcon = L.divIcon({
-        className: 'map-avatar-wrapper',
-        html: `<img src="${f.img}" class="map-avatar-img">`,
-        iconSize: [46, 46],
-        iconAnchor: [23, 23]
-    });
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
 
-    L.marker(f.pos, { icon: customIcon }).addTo(map).bindPopup(`<b>${f.name}</b>`);
+    setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => toast.remove(), 400);
+    }, 2600);
+}
 
-    const fCard = document.createElement('div');
-    fCard.className = 'friend-item';
-    fCard.innerHTML = `<img src="${f.img}"><span>${f.name}</span>`;
-    fCard.onclick = () => map.flyTo(f.pos, 15, { duration: 1.5 });
-    document.getElementById('friends-list')?.appendChild(fCard);
-});
+// ─── INIT ─────────────────────────────────────────────────────────────────────
 
-// 11. Стили
-const style = document.createElement('style');
-style.innerHTML = `
-    .map-avatar-img { width: 40px; height: 40px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 10px rgba(0,0,0,0.2); object-fit: cover; }
-`;
-document.head.appendChild(style);
-
-// 12. Инициализация
 updateUI();
 checkAuth();

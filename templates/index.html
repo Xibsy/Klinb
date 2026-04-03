@@ -18,7 +18,7 @@
                 <span id="nav-username">Загрузка...</span>
             </div>
             <div class="top-actions">
-                <button class="icon-btn" onclick="addFriendPrompt()" title="Добавить друга">+</button>
+                <button class="icon-btn" onclick="openAddFriendModal()" title="Добавить друга">+</button>
                 <button class="icon-btn" id="theme-toggle" title="Сменить тему">🌓</button>
                 <button class="icon-btn" onclick="location.href='/lenta'" title="Лента">📰</button>
                 <button class="icon-btn" onclick="logout()" title="Выйти">🚪</button>
@@ -30,6 +30,7 @@
         </footer>
     </div>
 
+    <!-- Profile modal -->
     <div id="profile-modal" class="modal">
         <div class="modal-content">
             <div class="modal-handle"></div>
@@ -55,9 +56,11 @@
                         <div class="edit-overlay">📸</div>
                     </div>
                     <input type="file" id="avatar-input" hidden accept="image/*">
+                    <div id="avatar-upload-status" class="upload-status"></div>
 
                     <input type="text" id="input-name" class="edit-input-field name-field" placeholder="Твоё Имя">
                     <input type="text" id="input-username" class="edit-input-field user-field" placeholder="@username">
+                    <div id="username-error" class="field-error"></div>
                 </div>
 
                 <div class="social-section">
@@ -72,10 +75,23 @@
                 </div>
 
                 <div class="actions">
-                    <button class="save-btn" onclick="saveProfile()">Сохранить</button>
+                    <button class="save-btn" id="save-btn" onclick="saveProfile()">Сохранить</button>
                     <button class="close-btn" onclick="toggleEdit(false)">Отмена</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Add friend modal -->
+    <div id="add-friend-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+            <h3 class="modal-title">Добавить друга</h3>
+            <p class="modal-subtitle">Введите @username или имя пользователя</p>
+            <input type="text" id="friend-search-input" class="edit-input-field" placeholder="@username">
+            <div id="friend-search-result" class="friend-search-result"></div>
+            <button class="save-btn" onclick="searchAndAddFriend()">Найти</button>
+            <button class="close-btn" onclick="closeAddFriendModal()">Отмена</button>
         </div>
     </div>
 
