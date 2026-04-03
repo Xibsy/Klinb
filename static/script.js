@@ -413,7 +413,7 @@ async function searchAndAddFriend() {
     resultEl.innerHTML = '<span>Поиск...</span>';
 
     try {
-        const response = await fetch(`/api/find_user?q=${encodeURIComponent(query)}`);
+        const response = await fetch(`/api/find_user/${query}`);
         const data = await response.json();
 
         if (data.status === 'success' && data.user) {

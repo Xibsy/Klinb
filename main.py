@@ -145,14 +145,19 @@ def index() -> str:
     return render_template('index.html')
 
 
-@klinb_app.route('/add_friend', methods=['POST'])
+@klinb_app.route('/api/add_friend', methods=['POST'])
 def add_friend() -> tuple[Response, int]:
     data = request.get_json()
-    friend_name = data.get('name')
+    friend_name = data.get('username')
     if friend_name:
         return jsonify({"status": "success", "message": f"У вас теперь в друзьях - {friend_name}"}), 200
     else:
         return jsonify({"status": "error", "message": "напиши сначала кого добавить"}), 400
+
+@klinb_app.route('/api/find_user/<username>', methods=['GET'])
+def find_user(username: str) -> tuple[Response, int]:
+    user = User.query.filter(User.username == username).first()
+    return jsonify({"status": "success", "user": user.to_dict()}), 200
 
 
 if __name__ == '__main__':
