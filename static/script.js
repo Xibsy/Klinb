@@ -323,7 +323,7 @@ async function saveProfile() {
     const saveBtn = document.getElementById('save-btn');
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Сохранение...'; }
 
-    const payload = { name, username, discord, telegram, avatar: userState.avatar };
+    const payload = { name, username, discord, telegram };
 
     try {
         // Отдельный эндпоинт для обновления профиля (не /api/register)

@@ -160,5 +160,22 @@ def find_user(username: str) -> tuple[Response, int]:
     return jsonify({"status": "success", "user": user.to_dict()}), 200
 
 
+@klinb_app.route('/api/upload_avatar', methods=['POST'])
+def upload_avatar() -> tuple[Response, int]:
+    image = request.files['avatar']
+    filename = secure_filename(image.filename)
+    name, ext = os.path.splitext(filename)
+    filename = f"{name}_{os.urandom(4).hex()}{ext}"
+    filepath = os.path.join(klinb_app.config['UPLOAD_FOLDER'], filename)
+    image.save(filepath)
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        user.avatar = '/static/uploads/' + filename
+        db.session.commit()
+        return jsonify({"status": 'success', 'message': 'Успех'}), 200
+    return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
+
+
+
 if __name__ == '__main__':
     klinb_app.run(host='', port=8080, debug=True)
