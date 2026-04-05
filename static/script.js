@@ -38,6 +38,104 @@ const layers = {
 
 layers[userState.theme].addTo(map);
 
+// ─── GEOLOCATION ──────────────────────────────────────────────────────────────
+
+let myMarker          = null;
+let myAccuracyCircle  = null;
+let watchId           = null;
+let lastSentAt        = 0;
+let isFirstFix        = true;
+
+function startLocationTracking() {
+    if (!navigator.geolocation) {
+        showToast('Геолокация не поддерживается вашим браузером');
+        return;
+    }
+
+    if (watchId !== null) return; // уже запущено
+
+    watchId = navigator.geolocation.watchPosition(
+        onPositionUpdate,
+        onPositionError,
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+}
+
+function onPositionUpdate(pos) {
+    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    const latlng = [lat, lng];
+
+    if (!myMarker) {
+        // Первый фикс — подлетаем к позиции
+        if (isFirstFix) {
+            map.flyTo(latlng, 15, { duration: 1.5 });
+            isFirstFix = false;
+        }
+
+        const icon = L.divIcon({
+            className: '',
+            html: `<div class="my-location-dot"><div class="my-location-pulse"></div></div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+
+        myMarker = L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map);
+
+        myAccuracyCircle = L.circle(latlng, {
+            radius: accuracy,
+            color: '#007aff',
+            fillColor: '#007aff',
+            fillOpacity: 0.08,
+            weight: 1,
+            opacity: 0.3
+        }).addTo(map);
+
+    } else {
+        myMarker.setLatLng(latlng);
+        myAccuracyCircle.setLatLng(latlng).setRadius(accuracy);
+    }
+
+    // Отправка на сервер не чаще раза в 10 секунд
+    if (isAuthenticated) {
+        sendMyLocation(lat, lng);
+    }
+}
+
+function onPositionError(err) {
+    console.warn('Geolocation error:', err.code, err.message);
+    switch (err.code) {
+        case 1: showToast('Разрешите доступ к геолокации в браузере'); break;
+        case 2: showToast('Не удалось определить позицию'); break;
+        case 3: showToast('Время ожидания геолокации истекло'); break;
+    }
+}
+
+async function sendMyLocation(lat, lng) {
+    const now = Date.now();
+    if (now - lastSentAt < 10_000) return;
+    lastSentAt = now;
+
+    try {
+        await fetch('/api/update_location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat, lng })
+        });
+    } catch (e) {
+        console.warn('Could not send location to server:', e);
+    }
+}
+
+function flyToMyLocation() {
+    if (myMarker) {
+        map.flyTo(myMarker.getLatLng(), 16, { duration: 1.2 });
+    } else {
+        showToast('Определяем вашу позицию...');
+        isFirstFix = true;
+        startLocationTracking();
+    }
+}
+
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 
 async function checkAuth() {
@@ -473,7 +571,7 @@ async function loadFriends() {
         console.warn('Could not load friends:', err);
         // Фолбек на демо-данные в dev-режиме
         renderFriends([
-            { name: "Алекс", pos: [55.755, 37.62], avatar: "/static/uploads/koliman.jpg" },
+            { name: "Алекс", pos: [55.155, 61.431], avatar: "/static/uploads/koliman.jpg" },
             { name: "Мария", pos: [55.742, 37.61], avatar: "/static/uploads/koliman.jpg" }
         ]);
     }
@@ -566,3 +664,4 @@ function showToast(message) {
 
 updateUI();
 checkAuth();
+startLocationTracking();

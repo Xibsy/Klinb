@@ -1,4 +1,7 @@
+import json
 import os
+
+import requests
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, Response
 from werkzeug.utils import secure_filename
 from data.models.user import db, User
@@ -190,6 +193,20 @@ def update_profile() -> tuple[Response, int]:
         db.session.commit()
         return jsonify({"status": 'success', 'message': 'Успех'}), 200
     return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
+
+def get_ip():
+    response = requests.get('https://api64.ipify.org?format=json').json()
+    return response["ip"]
+
+def get_location():
+    ip_address = get_ip()
+    response = requests.get(f'https://ipapi.co/{ip_address}/json/').json()
+    return response
+
+@klinb_app.route('/api/geo_pos')
+def geo_pos():
+    data = get_location()
+    print(data)
 
 
 if __name__ == '__main__':
