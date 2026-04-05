@@ -327,8 +327,8 @@ async function saveProfile() {
 
     try {
         // Отдельный эндпоинт для обновления профиля (не /api/register)
-        const response = await fetch('/api/profile', {
-            method: 'PUT',
+        const response = await fetch('/api/update_profile', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });

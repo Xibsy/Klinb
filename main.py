@@ -151,8 +151,7 @@ def add_friend() -> tuple[Response, int]:
     friend_name = data.get('username')
     if friend_name:
         return jsonify({"status": "success", "message": f"У вас теперь в друзьях - {friend_name}"}), 200
-    else:
-        return jsonify({"status": "error", "message": "напиши сначала кого добавить"}), 400
+    return jsonify({"status": "error", "message": "напиши сначала кого добавить"}), 400
 
 @klinb_app.route('/api/find_user/<username>', methods=['GET'])
 def find_user(username: str) -> tuple[Response, int]:
@@ -175,6 +174,22 @@ def upload_avatar() -> tuple[Response, int]:
         return jsonify({"status": 'success', 'message': 'Успех'}), 200
     return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
 
+@klinb_app.route('/api/update_profile', methods=['POST'])
+def update_profile() -> tuple[Response, int]:
+    data = request.get_json()
+    new_name = data.get('name')
+    new_username = data.get('username')
+    new_discord = data.get('discord')
+    new_telegram = data.get('telegram')
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        user.name = new_name
+        user.username = new_username
+        user.discord = new_discord
+        user.telegram = new_telegram
+        db.session.commit()
+        return jsonify({"status": 'success', 'message': 'Успех'}), 200
+    return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
 
 
 if __name__ == '__main__':
