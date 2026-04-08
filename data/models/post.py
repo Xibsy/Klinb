@@ -27,6 +27,9 @@ class Post(db.Model):
                 self.hashtags.append(tag)
         db.session.commit()
 
-    def to_dict(self) -> dict:
-        return {'id': self.id, 'user_id': self.user_id, 'username': self.user.username if self.user else None,
-            'content': self.content, 'image': self.image, 'hashtags': [h.name for h in self.hashtags]}
+    def to_dict(self) -> dict[str, list[str]]:
+        found_hashtag: list[str] = []
+        for teg in self.hashtags:
+            found_hashtag.append(teg.name)
+        return {'id': self.id, 'user_id': self.user_id, 'username': self.user.username, 'content': self.content,
+                'image': self.image, 'hashtags': found_hashtag}

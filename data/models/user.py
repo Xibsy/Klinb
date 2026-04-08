@@ -21,6 +21,6 @@ class User(db.Model):
         db.session.commit()
         return user
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, list[str]]:
         return {'id': self.id, 'name': self.name, 'username': self.username, 'avatar': self.avatar,
                 'discord': self.discord, 'telegram': self.telegram}

@@ -14,8 +14,6 @@ klinb_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 klinb_app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 klinb_app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
-os.makedirs(klinb_app.config['UPLOAD_FOLDER'], exist_ok=True)
-
 db.init_app(klinb_app)
 
 with klinb_app.app_context():
@@ -73,12 +71,13 @@ def current_user() -> tuple[Response, int]:
 
 @klinb_app.route('/new_post', methods=['GET', 'POST'])
 def new_post() -> Response | str:
+    if 'user_id' not in session:
+        return redirect(url_for('index'))
     if request.method == 'POST':
-        user_id = request.form.get('user_id')
+        user_id = session['user_id']
         content = request.form.get('content')
         image_file = request.files.get('image')
         filename = None
-
         if image_file and image_file.filename != '':
             filename = secure_filename(image_file.filename)
             name, ext = os.path.splitext(filename)
@@ -86,16 +85,13 @@ def new_post() -> Response | str:
             filepath = os.path.join(klinb_app.config['UPLOAD_FOLDER'], filename)
             image_file.save(filepath)
             compress_photo(filepath)
-
         new_post = Post(user_id=user_id, content=content, image=filename)
         db.session.add(new_post)
         db.session.commit()
         new_post.add_hashtags()
 
         return redirect(url_for('lenta'))
-
-    users = User.query.all()
-    return render_template('new_post.html', users=users)
+    return render_template('new_post.html')
 
 
 @klinb_app.route('/lenta')
