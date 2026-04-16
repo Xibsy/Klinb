@@ -1,31 +1,33 @@
-from .user import db
 import re
+import sqlalchemy as sql
+import sqlalchemy.orm as orm
+from ..db_session import SqlAlchemyBase
 
 
-class Post(db.Model):
+class Post(SqlAlchemyBase):
     __tablename__ = 'posts'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    content = db.Column(db.Text, nullable=True)
-    image = db.Column(db.String(200), nullable=True)
 
-    user = db.relationship('User', backref='posts')
-    hashtags = db.relationship('Hashtag', secondary='post_hashtags', backref='posts')
+    id = sql.Column(sql.Integer, primary_key=True)
+    user_id = sql.Column(sql.Integer, sql.ForeignKey("users.id"), nullable=False)
+    content = sql.Column(sql.Text, nullable=True)
+    image = sql.Column(sql.String(200), nullable=True)
+
+    user = orm.relationship("User", back_populates="posts")
+    hashtags = orm.relationship("Hashtag", secondary="post_hashtags", back_populates="posts")
 
     def found_hashtags(self) -> list[str]:
-        return re.findall(r'#(\w+)', self.content)
+        return re.findall(r'#(\w+)', self.content or "")
 
-    def add_hashtags(self) -> None:
+    def add_hashtags(self, session) -> None:
         from .hashtag import Hashtag
         tag_names = self.found_hashtags()
         for tag_name in tag_names:
-            tag = Hashtag.query.filter_by(name=tag_name.lower()).first()
+            tag = session.query(Hashtag).filter(Hashtag.name == tag_name.lower()).first()
             if not tag:
                 tag = Hashtag(name=tag_name.lower())
-                db.session.add(tag)
+                session.add(tag)
             if tag not in self.hashtags:
                 self.hashtags.append(tag)
-        db.session.commit()
 
     def to_dict(self) -> dict[str, list[str]]:
         found_hashtag: list[str] = []

@@ -1,23 +1,19 @@
 import os
+from pathlib import Path
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, Response
 from werkzeug.utils import secure_filename
-from data.models.user import db, User
+import data.db_session as db
+from data.models.user import User
 from data.models.post import Post
 from data.models.hashtag import Hashtag
 from data.utilities.compress_photo import compress_photo
 
+DATABASE = Path("db/blink.db")
 klinb_app = Flask(__name__, static_folder='static')
-klinb_app.secret_key = "очень большой секрет"
-
-klinb_app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///blink.db'
-klinb_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+klinb_app.secret_key = "111"
 klinb_app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 klinb_app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 
-db.init_app(klinb_app)
-
-with klinb_app.app_context():
-    db.create_all()
 
 @klinb_app.route('/api/register', methods=['POST'])
 def register() -> tuple[Response, int]:
@@ -31,13 +27,10 @@ def register() -> tuple[Response, int]:
     if not name or not username:
         return jsonify({"status": "error", "message": "заполни правильно"}), 400
 
-    existing_user = User.query.filter_by(username=username).first()
-    if existing_user:
-        return jsonify({"status": "error", "message": "Пользователь с таким username уже существует"}), 400
     user = User.create_user(name=name, username=username, avatar=avatar, discord=discord, telegram=telegram)
     session['user_id'] = user.id
     session['username'] = user.username
-    return jsonify({"status": "success", "message": "Регистрация успешна", "user": user.to_dict()}), 200
+    return jsonify({"status": "success", "message": "Регистрация успешнo", "user": user.to_dict()}), 200
 
 
 @klinb_app.route('/api/login', methods=['POST'])
@@ -46,7 +39,8 @@ def login() -> tuple[Response, int]:
     username = data.get('username')
     if not username:
         return jsonify({"status": "error", "message": "ты забыл username"}), 400
-    user = User.query.filter_by(username=username).first()
+    db_sess = db.create_session()
+    user = db_sess.query(User).filter(User.username == username).first()
     if not user:
         return jsonify({"status": "error", "message": "таких не знаем"}), 404
     session['user_id'] = user.id
@@ -63,7 +57,8 @@ def logout() -> tuple[Response, int]:
 @klinb_app.route('/api/current_user', methods=['GET'])
 def current_user() -> tuple[Response, int]:
     if 'user_id' in session:
-        user = User.query.get(session['user_id'])
+        db_sess = db.create_session()
+        user = db_sess.get(User, session['user_id'])
         if user:
             return jsonify({"status": "success", "user": user.to_dict()}), 200
     return jsonify({"status": "error", "message": "еще не зашел :("}), 401
@@ -83,38 +78,42 @@ def new_post() -> Response | str:
             name, ext = os.path.splitext(filename)
             filename = f"{name}_{os.urandom(4).hex()}{ext}"
             filepath = os.path.join(klinb_app.config['UPLOAD_FOLDER'], filename)
+            os.makedirs(klinb_app.config['UPLOAD_FOLDER'], exist_ok=True)
             image_file.save(filepath)
             compress_photo(filepath)
+        db_sess = db.create_session()
         new_post = Post(user_id=user_id, content=content, image=filename)
-        db.session.add(new_post)
-        db.session.commit()
-        new_post.add_hashtags()
-
+        db_sess.add(new_post)
+        new_post.add_hashtags(session=db_sess)
+        db_sess.commit()
         return redirect(url_for('lenta'))
     return render_template('new_post.html')
 
 
 @klinb_app.route('/lenta')
 def lenta() -> str:
-    posts = Post.query.order_by(Post.id.desc()).all()
+    db_sess = db.create_session()
+    posts = db_sess.query(Post).order_by(Post.id.desc()).all()
     return render_template('lenta.html', posts=posts)
 
 
 @klinb_app.route('/hashtag/<tag_name>')
 def hashtag_posts(tag_name: str) -> str:
-    hashtag = Hashtag.query.filter_by(name=tag_name.lower()).first()
+    db_sess = db.create_session()
+    hashtag = db_sess.query(Hashtag).filter(Hashtag.name == tag_name.lower()).first()
     posts = hashtag.posts if hashtag else []
     return render_template('lenta.html', posts=posts, hashtag=tag_name)
 
 
 @klinb_app.route('/api/posts', methods=['GET'])
 def get_posts() -> tuple[Response, int]:
+    db_sess = db.create_session()
     tag = request.args.get('hashtag')
     if tag:
-        hashtag = Hashtag.query.filter_by(name=tag.lower()).first()
+        hashtag = db_sess.query(Hashtag).filter(Hashtag.name == tag.lower()).first()
         posts = hashtag.posts if hashtag else []
     else:
-        posts = Post.query.order_by(Post.id.desc()).all()
+        posts = db_sess.query(Post).order_by(Post.id.desc()).all()
     return jsonify({"status": "success", "posts": [post.to_dict() for post in posts]}), 200
 
 
@@ -128,10 +127,11 @@ def create_post_api() -> tuple[Response, int]:
     if not content:
         return jsonify({"status": "error", "message": "выложи что то, а не пустоту"}), 400
 
+    db_sess = db.create_session()
     new_post = Post(user_id=session['user_id'], content=content)
-    db.session.add(new_post)
-    db.session.commit()
-    new_post.add_hashtags()
+    db_sess.add(new_post)
+    new_post.add_hashtags(session=db_sess)
+    db_sess.commit()
 
     return jsonify({"status": "success", "post": new_post.to_dict()}), 201
 
@@ -149,44 +149,60 @@ def add_friend() -> tuple[Response, int]:
         return jsonify({"status": "success", "message": f"У вас теперь в друзьях - {friend_name}"}), 200
     return jsonify({"status": "error", "message": "напиши сначала кого добавить"}), 400
 
+
 @klinb_app.route('/api/find_user/<username>', methods=['GET'])
 def find_user(username: str) -> tuple[Response, int]:
-    user = User.query.filter(User.username == username).first()
+    db_sess = db.create_session()
+    user = db_sess.query(User).filter(User.username == username).first()
+    if not user:
+        return jsonify({"status": "error", "message": "Пользователь не найден"}), 404
     return jsonify({"status": "success", "user": user.to_dict()}), 200
 
 
 @klinb_app.route('/api/upload_avatar', methods=['POST'])
 def upload_avatar() -> tuple[Response, int]:
+    if 'user_id' not in session:
+        return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
+
     image = request.files['avatar']
     filename = secure_filename(image.filename)
     name, ext = os.path.splitext(filename)
     filename = f"{name}_{os.urandom(4).hex()}{ext}"
+    os.makedirs(klinb_app.config['UPLOAD_FOLDER'], exist_ok=True)
     filepath = os.path.join(klinb_app.config['UPLOAD_FOLDER'], filename)
     image.save(filepath)
-    if 'user_id' in session:
-        user = User.query.get(session['user_id'])
-        user.avatar = '/static/uploads/' + filename
-        db.session.commit()
-        return jsonify({"status": 'success', 'message': 'Успех'}), 200
-    return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
+
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    avatar_url = '/static/uploads/' + filename
+    user.avatar = avatar_url
+    db_sess.commit()
+    return jsonify({"status": "success", "message": "Успех", "avatar_url": avatar_url}), 200
+
 
 @klinb_app.route('/api/update_profile', methods=['POST'])
 def update_profile() -> tuple[Response, int]:
+    if 'user_id' not in session:
+        return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
     data = request.get_json()
     new_name = data.get('name')
     new_username = data.get('username')
     new_discord = data.get('discord')
     new_telegram = data.get('telegram')
-    if 'user_id' in session:
-        user = User.query.get(session['user_id'])
-        user.name = new_name
-        user.username = new_username
-        user.discord = new_discord
-        user.telegram = new_telegram
-        db.session.commit()
-        return jsonify({"status": 'success', 'message': 'Успех'}), 200
-    return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    user.name = new_name
+    user.username = new_username
+    user.discord = new_discord
+    user.telegram = new_telegram
+    db_sess.commit()
+    return jsonify({"status": 'success', 'message': 'Успех'}), 200
+
+
+def main() -> None:
+    db.init(DATABASE)
+    klinb_app.run(host='', port=8080, debug=True)
 
 
 if __name__ == '__main__':
-    klinb_app.run(host='', port=8080, debug=True)
+    main()

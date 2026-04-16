@@ -14,7 +14,6 @@ try {
     const saved = localStorage.getItem('blink_user');
     if (saved) {
         const parsed = JSON.parse(saved);
-        // Не восстанавливаем base64 аватар из localStorage — только URL
         if (parsed.avatar && parsed.avatar.startsWith('data:')) {
             parsed.avatar = DEFAULT_STATE.avatar;
         }
@@ -52,7 +51,7 @@ function startLocationTracking() {
         return;
     }
 
-    if (watchId !== null) return; // уже запущено
+    if (watchId !== null) return;
 
     watchId = navigator.geolocation.watchPosition(
         onPositionUpdate,
@@ -66,7 +65,6 @@ function onPositionUpdate(pos) {
     const latlng = [lat, lng];
 
     if (!myMarker) {
-        // Первый фикс — подлетаем к позиции
         if (isFirstFix) {
             map.flyTo(latlng, 15, { duration: 1.5 });
             isFirstFix = false;
@@ -95,7 +93,6 @@ function onPositionUpdate(pos) {
         myAccuracyCircle.setLatLng(latlng).setRadius(accuracy);
     }
 
-    // Отправка на сервер не чаще раза в 10 секунд
     if (isAuthenticated) {
         sendMyLocation(lat, lng);
     }
@@ -144,7 +141,6 @@ async function checkAuth() {
         const data = await response.json();
         if (data.status === 'success' && data.user) {
             isAuthenticated = true;
-            // Мержим данные с сервера, не перезаписывая тему
             userState = { ...userState, ...data.user };
             saveStateLocally();
             updateUI();
@@ -158,35 +154,7 @@ async function checkAuth() {
     }
 }
 
-function showAuthModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal active';
-    modal.id = 'auth-modal';
-    modal.innerHTML = `
-        <div class="modal-content auth-modal-content">
-            <div class="modal-handle"></div>
-            <h2 class="auth-title">Добро пожаловать 👋</h2>
-            <p class="auth-subtitle">Создайте аккаунт, чтобы начать</p>
-
-            <input type="text" id="auth-name"     class="edit-input-field" placeholder="Ваше имя">
-            <input type="text" id="auth-username" class="edit-input-field" placeholder="@username">
-            <div id="auth-username-error" class="field-error"></div>
-            <input type="text" id="auth-discord"  class="edit-input-field" placeholder="Discord (необязательно)">
-            <input type="text" id="auth-telegram" class="edit-input-field" placeholder="Telegram (необязательно)">
-
-            <button onclick="registerUser()" class="save-btn">Создать аккаунт</button>
-            <button onclick="closeAuthModal()" class="close-btn">Пропустить</button>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-function closeAuthModal() {
-    document.getElementById('auth-modal')?.remove();
-}
-
 function showAuthModal(mode = 'register') {
-    // Удаляем старую модалку, если есть
     const existing = document.getElementById('auth-modal');
     if (existing) existing.remove();
 
@@ -231,7 +199,6 @@ function showAuthModal(mode = 'register') {
 
     document.body.appendChild(modal);
 
-    // Навешиваем обработчик на кнопку действия
     const actionBtn = document.getElementById('auth-action-btn');
     if (actionBtn) {
         actionBtn.onclick = () => {
@@ -239,6 +206,10 @@ function showAuthModal(mode = 'register') {
             else loginUser();
         };
     }
+}
+
+function closeAuthModal() {
+    document.getElementById('auth-modal')?.remove();
 }
 
 function switchAuthMode(mode) {
@@ -387,7 +358,6 @@ function updateUI() {
 function toggleEdit(isEdit) {
     document.getElementById('view-mode').style.display = isEdit ? 'none'  : 'block';
     document.getElementById('edit-mode').style.display = isEdit ? 'block' : 'none';
-    // Сбросить ошибки при переключении
     const errEl = document.getElementById('username-error');
     if (errEl) errEl.textContent = '';
 }
@@ -424,7 +394,6 @@ async function saveProfile() {
     const payload = { name, username, discord, telegram };
 
     try {
-        // Отдельный эндпоинт для обновления профиля (не /api/register)
         const response = await fetch('/api/update_profile', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -472,10 +441,9 @@ document.getElementById('avatar-input')?.addEventListener('change', async functi
         const data = await response.json();
 
         if (response.ok && data.avatar_url) {
-            // Сохраняем только URL, не base64
             userState.avatar = data.avatar_url;
-            const editAvatar = document.getElementById('edit-avatar');
-            if (editAvatar) editAvatar.src = data.avatar_url;
+            saveStateLocally();
+            updateUI();
             if (statusEl) { statusEl.textContent = '✓ Фото обновлено'; statusEl.className = 'upload-status'; }
         } else {
             if (statusEl) { statusEl.textContent = data.message || 'Ошибка загрузки'; statusEl.className = 'upload-status error'; }
@@ -485,7 +453,6 @@ document.getElementById('avatar-input')?.addEventListener('change', async functi
         if (statusEl) { statusEl.textContent = 'Ошибка соединения'; statusEl.className = 'upload-status error'; }
     }
 
-    // Очищаем input для повторного выбора того же файла
     e.target.value = '';
 });
 
@@ -569,7 +536,6 @@ async function loadFriends() {
         }
     } catch (err) {
         console.warn('Could not load friends:', err);
-        // Фолбек на демо-данные в dev-режиме
         renderFriends([
             { name: "Алекс", pos: [55.155, 61.431], avatar: "/static/uploads/koliman.jpg" },
             { name: "Мария", pos: [55.742, 37.61], avatar: "/static/uploads/koliman.jpg" }
@@ -585,7 +551,6 @@ function renderFriends(friends) {
     friends.forEach(f => {
         const pos = f.pos || f.position;
 
-        // Маркер на карте
         if (pos) {
             const icon = L.divIcon({
                 className: 'map-avatar-wrapper',
@@ -596,7 +561,6 @@ function renderFriends(friends) {
             L.marker(pos, { icon }).addTo(map).bindPopup(`<b>${escapeHtml(f.name)}</b>`);
         }
 
-        // Карточка в bottom sheet
         const card = document.createElement('div');
         card.className = 'friend-item';
         card.innerHTML = `<img src="${escapeHtml(f.avatar)}" alt="${escapeHtml(f.name)}"><span>${escapeHtml(f.name)}</span>`;
@@ -629,7 +593,6 @@ function logout() {
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 function saveStateLocally() {
-    // Никогда не сохраняем base64 в localStorage
     const toSave = { ...userState };
     if (toSave.avatar?.startsWith('data:')) toSave.avatar = DEFAULT_STATE.avatar;
     try {
