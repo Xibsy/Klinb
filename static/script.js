@@ -164,7 +164,7 @@ function showAuthModal(mode = 'register') {
 
     const isRegister = mode === 'register';
     const title = isRegister ? 'Создать аккаунт' : 'Войти в профиль';
-    const subtitle = isRegister ? 'Заполните данные для регистрации' : 'Введите ваш @username';
+    const subtitle = isRegister ? 'Заполните данные для регистрации' : 'Введите ваш @username и пароль';
 
     modal.innerHTML = `
         <div class="modal-content auth-modal-content">
@@ -177,10 +177,12 @@ function showAuthModal(mode = 'register') {
                     <input type="text" id="auth-name" class="edit-input-field" placeholder="Ваше имя">
                     <input type="text" id="auth-username" class="edit-input-field" placeholder="@username">
                     <div id="auth-username-error" class="field-error"></div>
+                    <input type="password" id="auth-password" class="edit-input-field" placeholder="Пароль (мин. 4 символа)">
                     <input type="text" id="auth-discord" class="edit-input-field" placeholder="Discord (необязательно)">
                     <input type="text" id="auth-telegram" class="edit-input-field" placeholder="Telegram (необязательно)">
                 ` : `
                     <input type="text" id="login-username" class="edit-input-field" placeholder="@username">
+                    <input type="password" id="login-password" class="edit-input-field" placeholder="Пароль">
                     <div id="login-error" class="field-error"></div>
                 `}
             </div>
@@ -218,11 +220,17 @@ function switchAuthMode(mode) {
 
 async function loginUser() {
     const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
     const username = usernameInput?.value.trim().replace('@', '');
+    const password = passwordInput?.value;
     const errorEl = document.getElementById('login-error');
 
     if (!username) {
         if (errorEl) errorEl.textContent = 'Укажите username';
+        return;
+    }
+    if (!password) {
+        if (errorEl) errorEl.textContent = 'Введите пароль';
         return;
     }
     if (errorEl) errorEl.textContent = '';
@@ -237,7 +245,7 @@ async function loginUser() {
         const response = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username })
+            body: JSON.stringify({ username, password })
         });
         const data = await response.json();
 
@@ -250,8 +258,8 @@ async function loginUser() {
             loadFriends();
             showToast(`С возвращением, ${userState.name || username}!`);
         } else {
-            if (errorEl) errorEl.textContent = data.message || 'Пользователь не найден';
-            showToast('Ошибка входа: ' + (data.message || 'неверный username'));
+            if (errorEl) errorEl.textContent = data.message || 'Ошибка входа';
+            showToast('Ошибка входа: ' + (data.message || 'неверный username или пароль'));
         }
     } catch (error) {
         console.error('Login error:', error);
@@ -266,14 +274,17 @@ async function loginUser() {
 }
 
 async function registerUser() {
-    const name     = document.getElementById('auth-name')?.value.trim();
+    const name = document.getElementById('auth-name')?.value.trim();
     const username = document.getElementById('auth-username')?.value.trim().replace('@', '');
-    const discord  = document.getElementById('auth-discord')?.value.trim();
+    const password = document.getElementById('auth-password')?.value;
+    const discord = document.getElementById('auth-discord')?.value.trim();
     const telegram = document.getElementById('auth-telegram')?.value.trim();
 
     const errorEl = document.getElementById('auth-username-error');
 
     if (!name) { showToast('Укажите имя'); return; }
+    if (!password) { showToast('Укажите пароль'); return; }
+    if (password.length < 4) { showToast('Пароль должен быть минимум 4 символа'); return; }
 
     const usernameErr = validateUsername(username);
     if (usernameErr) {
@@ -282,7 +293,7 @@ async function registerUser() {
     }
     if (errorEl) errorEl.textContent = '';
 
-    const userData = { name, username, avatar: DEFAULT_STATE.avatar, discord, telegram };
+    const userData = { name, username, password, avatar: DEFAULT_STATE.avatar, discord, telegram };
 
     try {
         const response = await fetch('/api/register', {

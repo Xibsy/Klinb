@@ -20,29 +20,36 @@ def register() -> tuple[Response, int]:
     data = request.get_json()
     name = data.get('name')
     username = data.get('username')
+    password = data.get('password')
     avatar = data.get('avatar')
     discord = data.get('discord')
     telegram = data.get('telegram')
 
-    if not name or not username:
-        return jsonify({"status": "error", "message": "заполни правильно"}), 400
+    if not name or not username or not password:
+        return jsonify({"status": "error", "message": "заполните бланк"}), 400
+    if len(password) < 4:
+        return jsonify({"status": "error", "message": "минимум 4 символа"}), 400
+    user = User.create_user(name=name, username=username, password=password,
+                            avatar=avatar, discord=discord, telegram=telegram)
+    if not user:
+        return jsonify({"status": "error", "message": "Пользователь с таким username уже существует"}), 400
 
-    user = User.create_user(name=name, username=username, avatar=avatar, discord=discord, telegram=telegram)
     session['user_id'] = user.id
     session['username'] = user.username
-    return jsonify({"status": "success", "message": "Регистрация успешнo", "user": user.to_dict()}), 200
+    return jsonify(
+        {"status": "success", "message": f"Добро пожаловать на сайт klink, {name}", "user": user.to_dict()}), 200
 
 
 @klinb_app.route('/api/login', methods=['POST'])
 def login() -> tuple[Response, int]:
     data = request.get_json()
     username = data.get('username')
-    if not username:
-        return jsonify({"status": "error", "message": "ты забыл username"}), 400
-    db_sess = db.create_session()
-    user = db_sess.query(User).filter(User.username == username).first()
+    password = data.get('password')
+    if not username or not password:
+        return jsonify({"status": "error", "message": "введите username и пароль"}), 400
+    user = User.authenticate(username, password)
     if not user:
-        return jsonify({"status": "error", "message": "таких не знаем"}), 404
+        return jsonify({"status": "error", "message": "неверный username или пароль"}), 401
     session['user_id'] = user.id
     session['username'] = user.username
     return jsonify({"status": "success", "user": user.to_dict()}), 200
