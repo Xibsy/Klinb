@@ -20,6 +20,14 @@
             <div class="top-actions">
                 <button class="icon-btn" onclick="flyToMyLocation()" title="Моя позиция">📍</button>
                 <button class="icon-btn" onclick="openAddFriendModal()" title="Добавить друга">+</button>
+
+                <!-- ── Кнопка уведомлений о запросах в друзья ── -->
+                <button class="icon-btn notif-btn" id="requests-btn"
+                        onclick="openRequestsModal()" title="Запросы в друзья">
+                    🔔
+                    <span class="notif-badge" id="requests-badge" style="display:none">0</span>
+                </button>
+
                 <button class="icon-btn" id="theme-toggle" title="Сменить тему">🌓</button>
                 <button class="icon-btn" onclick="location.href='/lenta'" title="Лента">📰</button>
                 <button class="icon-btn" onclick="logout()" title="Выйти">🚪</button>
@@ -93,6 +101,32 @@
             <div id="friend-search-result" class="friend-search-result"></div>
             <button class="save-btn" onclick="searchAndAddFriend()">Найти</button>
             <button class="close-btn" onclick="closeAddFriendModal()">Отмена</button>
+        </div>
+    </div>
+
+    <!-- ── Модал: Запросы в друзья ── -->
+    <div id="requests-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+            <h3 class="modal-title">Запросы в друзья</h3>
+            <p class="modal-subtitle" id="requests-subtitle">Входящие запросы</p>
+
+            <!-- Вкладки -->
+            <div class="requests-tabs">
+                <button class="req-tab active" id="tab-incoming" onclick="switchRequestsTab('incoming')">
+                    Входящие <span class="tab-count" id="incoming-count">0</span>
+                </button>
+                <button class="req-tab" id="tab-outgoing" onclick="switchRequestsTab('outgoing')">
+                    Исходящие <span class="tab-count" id="outgoing-count">0</span>
+                </button>
+            </div>
+
+            <!-- Список запросов -->
+            <div id="requests-list" class="requests-list">
+                <div class="requests-empty">Загрузка...</div>
+            </div>
+
+            <button class="close-btn" onclick="closeRequestsModal()">Закрыть</button>
         </div>
     </div>
 

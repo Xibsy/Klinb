@@ -29,8 +29,7 @@ def register() -> tuple[Response, int]:
         return jsonify({"status": "error", "message": "заполните бланк"}), 400
     if len(password) < 4:
         return jsonify({"status": "error", "message": "минимум 4 символа"}), 400
-    user = User.create_user(name=name, username=username, password=password,
-                            avatar=avatar, discord=discord, telegram=telegram)
+    user = User.create_user(name=name, username=username, password=password, avatar=avatar, discord=discord, telegram=telegram)
     if not user:
         return jsonify({"status": "error", "message": "Пользователь с таким username уже существует"}), 400
 
@@ -152,8 +151,12 @@ def index() -> str:
 def add_friend() -> tuple[Response, int]:
     data = request.get_json()
     friend_name = data.get('username')
-    if friend_name:
-        return jsonify({"status": "success", "message": f"У вас теперь в друзьях - {friend_name}"}), 200
+    db_sess = db.create_session()
+    user_username = db_sess.get(User, session['user_id']).username
+    if friend_name and friend_name != user_username:
+        return jsonify({"status": "success", "message": f"{friend_name} отправлен запрос в друзья"}), 200
+    elif friend_name and friend_name == user_username:
+        return jsonify({"status": "error", "message": f"Зачем себя добавлять?"}), 400
     return jsonify({"status": "error", "message": "напиши сначала кого добавить"}), 400
 
 
@@ -202,6 +205,16 @@ def update_profile() -> tuple[Response, int]:
     user.username = new_username
     user.discord = new_discord
     user.telegram = new_telegram
+    db_sess.commit()
+    return jsonify({"status": 'success', 'message': 'Успех'}), 200
+
+
+@klinb_app.route('/api/update_location', methods=['POST'])
+def update_location() -> tuple[Response, int]:
+    position = request.get_json()
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    user.geo_position = f"{position.get('lat')}, {position.get('lng')}"
     db_sess.commit()
     return jsonify({"status": 'success', 'message': 'Успех'}), 200
 

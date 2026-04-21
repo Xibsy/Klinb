@@ -116,6 +116,36 @@ body {
 
 .icon-btn:active { transform: scale(0.9); }
 
+/* ─── NOTIFICATION BADGE ──────────────────────────── */
+.notif-btn {
+    position: relative;
+}
+
+.notif-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--danger);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--bg);
+    pointer-events: none;
+    animation: badgePop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes badgePop {
+    from { transform: scale(0); }
+    to   { transform: scale(1); }
+}
+
 /* ─── BOTTOM SHEET ────────────────────────────────── */
 .bottom-sheet {
     background: var(--blur);
@@ -590,3 +620,163 @@ body {
 .auth-toggle a:hover {
     text-decoration: underline;
 }
+
+/* ─── FRIEND REQUESTS MODAL ───────────────────────── */
+
+/* Вкладки */
+.requests-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.req-tab {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #8e8e93;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+
+.req-tab.active {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.tab-count {
+    background: var(--accent);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    padding: 0 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.req-tab:not(.active) .tab-count {
+    background: #8e8e93;
+}
+
+/* Список запросов */
+.requests-list {
+    max-height: 340px;
+    overflow-y: auto;
+    scrollbar-width: none;
+    margin-bottom: 12px;
+}
+
+.requests-list::-webkit-scrollbar { display: none; }
+
+/* Пустое состояние */
+.requests-empty {
+    text-align: center;
+    color: #8e8e93;
+    font-size: 14px;
+    padding: 32px 0;
+}
+
+/* Карточка запроса */
+.request-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 4px;
+    border-bottom: 1px solid var(--border);
+    transition: opacity 0.25s, transform 0.25s;
+}
+
+.request-card:last-child { border-bottom: none; }
+
+.request-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--accent);
+    flex-shrink: 0;
+}
+
+.request-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.request-info b {
+    display: block;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.request-info span {
+    font-size: 13px;
+    color: var(--accent);
+}
+
+/* Кнопки действий */
+.request-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.req-accept-btn,
+.req-decline-btn,
+.req-cancel-btn {
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: transform var(--transition), opacity var(--transition);
+}
+
+.req-accept-btn:active,
+.req-decline-btn:active,
+.req-cancel-btn:active {
+    transform: scale(0.9);
+}
+
+.req-accept-btn {
+    width: 36px;
+    height: 36px;
+    background: var(--accent);
+    color: white;
+    border-radius: 50%;
+}
+
+.req-decline-btn {
+    width: 36px;
+    height: 36px;
+    background: var(--card);
+    color: var(--danger);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+}
+
+.req-cancel-btn {
+    padding: 8px 14px;
+    background: var(--card);
+    color: #8e8e93;
+    border: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.req-cancel-btn:hover { color: var(--danger); border-color: var(--danger); }

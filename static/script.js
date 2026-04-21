@@ -24,6 +24,8 @@ try {
 }
 
 let isAuthenticated = false;
+let currentRequestsTab = 'incoming';
+let requestsPollingInterval = null;
 
 // ─── MAP ──────────────────────────────────────────────────────────────────────
 
@@ -145,6 +147,7 @@ async function checkAuth() {
             saveStateLocally();
             updateUI();
             loadFriends();
+            startRequestsPolling();
         } else {
             showAuthModal();
         }
@@ -225,21 +228,12 @@ async function loginUser() {
     const password = passwordInput?.value;
     const errorEl = document.getElementById('login-error');
 
-    if (!username) {
-        if (errorEl) errorEl.textContent = 'Укажите username';
-        return;
-    }
-    if (!password) {
-        if (errorEl) errorEl.textContent = 'Введите пароль';
-        return;
-    }
+    if (!username) { if (errorEl) errorEl.textContent = 'Укажите username'; return; }
+    if (!password) { if (errorEl) errorEl.textContent = 'Введите пароль'; return; }
     if (errorEl) errorEl.textContent = '';
 
     const actionBtn = document.getElementById('auth-action-btn');
-    if (actionBtn) {
-        actionBtn.disabled = true;
-        actionBtn.textContent = 'Вход...';
-    }
+    if (actionBtn) { actionBtn.disabled = true; actionBtn.textContent = 'Вход...'; }
 
     try {
         const response = await fetch('/api/login', {
@@ -256,6 +250,7 @@ async function loginUser() {
             updateUI();
             closeAuthModal();
             loadFriends();
+            startRequestsPolling();
             showToast(`С возвращением, ${userState.name || username}!`);
         } else {
             if (errorEl) errorEl.textContent = data.message || 'Ошибка входа';
@@ -266,31 +261,24 @@ async function loginUser() {
         if (errorEl) errorEl.textContent = 'Ошибка соединения';
         showToast('Не удалось подключиться к серверу');
     } finally {
-        if (actionBtn) {
-            actionBtn.disabled = false;
-            actionBtn.textContent = 'Войти';
-        }
+        if (actionBtn) { actionBtn.disabled = false; actionBtn.textContent = 'Войти'; }
     }
 }
 
 async function registerUser() {
-    const name = document.getElementById('auth-name')?.value.trim();
+    const name     = document.getElementById('auth-name')?.value.trim();
     const username = document.getElementById('auth-username')?.value.trim().replace('@', '');
     const password = document.getElementById('auth-password')?.value;
-    const discord = document.getElementById('auth-discord')?.value.trim();
+    const discord  = document.getElementById('auth-discord')?.value.trim();
     const telegram = document.getElementById('auth-telegram')?.value.trim();
+    const errorEl  = document.getElementById('auth-username-error');
 
-    const errorEl = document.getElementById('auth-username-error');
-
-    if (!name) { showToast('Укажите имя'); return; }
-    if (!password) { showToast('Укажите пароль'); return; }
+    if (!name)           { showToast('Укажите имя'); return; }
+    if (!password)       { showToast('Укажите пароль'); return; }
     if (password.length < 4) { showToast('Пароль должен быть минимум 4 символа'); return; }
 
     const usernameErr = validateUsername(username);
-    if (usernameErr) {
-        if (errorEl) errorEl.textContent = usernameErr;
-        return;
-    }
+    if (usernameErr) { if (errorEl) errorEl.textContent = usernameErr; return; }
     if (errorEl) errorEl.textContent = '';
 
     const userData = { name, username, password, avatar: DEFAULT_STATE.avatar, discord, telegram };
@@ -309,6 +297,7 @@ async function registerUser() {
             updateUI();
             closeAuthModal();
             loadFriends();
+            startRequestsPolling();
             showToast('Добро пожаловать!');
         } else {
             showToast('Ошибка: ' + data.message);
@@ -322,7 +311,7 @@ async function registerUser() {
 // ─── VALIDATION ───────────────────────────────────────────────────────────────
 
 function validateUsername(username) {
-    if (!username) return 'Укажите username';
+    if (!username)          return 'Укажите username';
     if (username.length < 3)  return 'Минимум 3 символа';
     if (username.length > 32) return 'Максимум 32 символа';
     if (!/^[a-zA-Z0-9_]+$/.test(username)) return 'Только латинские буквы, цифры и _';
@@ -336,8 +325,8 @@ function updateUI() {
 
     const navAvatar   = document.getElementById('nav-avatar');
     const navUsername = document.getElementById('nav-username');
-    if (navAvatar)   navAvatar.src     = userState.avatar;
-    if (navUsername) navUsername.textContent = userState.name || 'Гость';
+    if (navAvatar)   navAvatar.src           = userState.avatar;
+    if (navUsername) navUsername.textContent  = userState.name || 'Гость';
 
     const displayAvatar   = document.getElementById('display-avatar');
     const displayName     = document.getElementById('display-name');
@@ -357,11 +346,11 @@ function updateUI() {
     const inputDiscord  = document.getElementById('input-discord');
     const inputTelegram = document.getElementById('input-telegram');
 
-    if (editAvatar)    editAvatar.src        = userState.avatar;
-    if (inputName)     inputName.value       = userState.name;
-    if (inputUsername) inputUsername.value   = userState.username;
-    if (inputDiscord)  inputDiscord.value    = userState.discord;
-    if (inputTelegram) inputTelegram.value   = userState.telegram;
+    if (editAvatar)    editAvatar.src      = userState.avatar;
+    if (inputName)     inputName.value     = userState.name;
+    if (inputUsername) inputUsername.value = userState.username;
+    if (inputDiscord)  inputDiscord.value  = userState.discord;
+    if (inputTelegram) inputTelegram.value = userState.telegram;
 }
 
 // ─── PROFILE ──────────────────────────────────────────────────────────────────
@@ -393,10 +382,7 @@ async function saveProfile() {
     const errorEl  = document.getElementById('username-error');
 
     const usernameErr = validateUsername(username);
-    if (usernameErr) {
-        if (errorEl) errorEl.textContent = usernameErr;
-        return;
-    }
+    if (usernameErr) { if (errorEl) errorEl.textContent = usernameErr; return; }
     if (errorEl) errorEl.textContent = '';
 
     const saveBtn = document.getElementById('save-btn');
@@ -481,7 +467,7 @@ function closeAddFriendModal() {
 }
 
 async function searchAndAddFriend() {
-    const query   = document.getElementById('friend-search-input')?.value.trim().replace('@', '');
+    const query    = document.getElementById('friend-search-input')?.value.trim().replace('@', '');
     const resultEl = document.getElementById('friend-search-result');
 
     if (!query) { showToast('Введите имя или username'); return; }
@@ -527,12 +513,191 @@ async function confirmAddFriend(username) {
         if (data.status === 'success') {
             showToast('Запрос отправлен!');
             closeAddFriendModal();
+            loadFriendRequests(); // обновить счётчик
         } else {
             showToast('Ошибка: ' + data.message);
         }
     } catch (err) {
         console.error('Add friend error:', err);
         showToast('Ошибка соединения');
+    }
+}
+
+// ─── FRIEND REQUESTS ──────────────────────────────────────────────────────────
+
+/**
+ * Запускаем фоновый опрос каждые 30 секунд,
+ * чтобы обновлять бейдж уведомлений.
+ */
+function startRequestsPolling() {
+    loadFriendRequests(); // сразу при входе
+    if (requestsPollingInterval) clearInterval(requestsPollingInterval);
+    requestsPollingInterval = setInterval(loadFriendRequests, 30_000);
+}
+
+/**
+ * Загружаем входящие и исходящие запросы,
+ * обновляем бейдж на кнопке 🔔.
+ */
+async function loadFriendRequests() {
+    if (!isAuthenticated) return;
+
+    try {
+        const response = await fetch('/api/friend_requests');
+        const data = await response.json();
+
+        if (data.status !== 'success') return;
+
+        const incoming = data.incoming || [];
+        const outgoing = data.outgoing || [];
+
+        // Обновляем счётчики вкладок
+        document.getElementById('incoming-count').textContent = incoming.length;
+        document.getElementById('outgoing-count').textContent = outgoing.length;
+
+        // Бейдж на кнопке (только входящие — они требуют действия)
+        const badge = document.getElementById('requests-badge');
+        if (badge) {
+            if (incoming.length > 0) {
+                badge.textContent = incoming.length;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        // Если модал открыт — перерисовываем список
+        const modal = document.getElementById('requests-modal');
+        if (modal?.classList.contains('active')) {
+            renderRequestsList(incoming, outgoing);
+        }
+
+        return { incoming, outgoing };
+    } catch (err) {
+        console.warn('Could not load friend requests:', err);
+        return { incoming: [], outgoing: [] };
+    }
+}
+
+function openRequestsModal() {
+    if (!isAuthenticated) { showAuthModal(); return; }
+
+    currentRequestsTab = 'incoming';
+
+    // Сбросить стиль вкладок
+    document.getElementById('tab-incoming')?.classList.add('active');
+    document.getElementById('tab-outgoing')?.classList.remove('active');
+
+    document.getElementById('requests-modal')?.classList.add('active');
+    document.getElementById('requests-list').innerHTML = '<div class="requests-empty">Загрузка...</div>';
+
+    loadFriendRequests().then(result => {
+        if (result) renderRequestsList(result.incoming, result.outgoing);
+    });
+}
+
+function closeRequestsModal() {
+    document.getElementById('requests-modal')?.classList.remove('active');
+}
+
+function switchRequestsTab(tab) {
+    currentRequestsTab = tab;
+
+    document.getElementById('tab-incoming')?.classList.toggle('active', tab === 'incoming');
+    document.getElementById('tab-outgoing')?.classList.toggle('active', tab === 'outgoing');
+
+    // Перерисовать без нового запроса, данные уже в DOM-счётчиках
+    loadFriendRequests().then(result => {
+        if (result) renderRequestsList(result.incoming, result.outgoing);
+    });
+}
+
+function renderRequestsList(incoming, outgoing) {
+    const listEl = document.getElementById('requests-list');
+    if (!listEl) return;
+
+    const items = currentRequestsTab === 'incoming' ? incoming : outgoing;
+
+    if (items.length === 0) {
+        listEl.innerHTML = `
+            <div class="requests-empty">
+                ${currentRequestsTab === 'incoming'
+                    ? '🎉 Входящих запросов нет'
+                    : '📤 Вы никому не отправляли запросы'}
+            </div>`;
+        return;
+    }
+
+    listEl.innerHTML = '';
+
+    items.forEach(req => {
+        // req = { id, name, username, avatar }
+        const card = document.createElement('div');
+        card.className = 'request-card';
+        card.id = `req-card-${req.id}`;
+
+        const isIncoming = currentRequestsTab === 'incoming';
+
+        card.innerHTML = `
+            <img src="${escapeHtml(req.avatar || DEFAULT_STATE.avatar)}" alt="${escapeHtml(req.name)}" class="request-avatar">
+            <div class="request-info">
+                <b>${escapeHtml(req.name)}</b>
+                <span>@${escapeHtml(req.username)}</span>
+            </div>
+            <div class="request-actions">
+                ${isIncoming ? `
+                    <button class="req-accept-btn" onclick="respondFriendRequest(${req.id}, 'accept')">✓</button>
+                    <button class="req-decline-btn" onclick="respondFriendRequest(${req.id}, 'decline')">✕</button>
+                ` : `
+                    <button class="req-cancel-btn" onclick="respondFriendRequest(${req.id}, 'cancel')">Отменить</button>
+                `}
+            </div>
+        `;
+
+        listEl.appendChild(card);
+    });
+}
+
+/**
+ * Принять, отклонить или отменить запрос.
+ * action: 'accept' | 'decline' | 'cancel'
+ */
+async function respondFriendRequest(requestId, action) {
+    // Быстро убираем карточку из DOM для плавности UX
+    const card = document.getElementById(`req-card-${requestId}`);
+    if (card) {
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(40px)';
+        card.style.transition = 'opacity 0.25s, transform 0.25s';
+        setTimeout(() => card.remove(), 250);
+    }
+
+    try {
+        const response = await fetch('/api/friend_request_respond', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ request_id: requestId, action })
+        });
+        const data = await response.json();
+
+        if (data.status === 'success') {
+            const messages = {
+                accept:  '🎉 Теперь вы друзья!',
+                decline: 'Запрос отклонён',
+                cancel:  'Запрос отменён'
+            };
+            showToast(messages[action] || 'Готово');
+
+            if (action === 'accept') loadFriends(); // обновить список друзей на карте
+            loadFriendRequests(); // обновить бейдж
+        } else {
+            showToast('Ошибка: ' + (data.message || 'попробуйте снова'));
+            if (card) { card.style.opacity = '1'; card.style.transform = 'none'; } // вернуть
+        }
+    } catch (err) {
+        console.error('Respond friend request error:', err);
+        showToast('Ошибка соединения');
+        if (card) { card.style.opacity = '1'; card.style.transform = 'none'; }
     }
 }
 
@@ -548,8 +713,8 @@ async function loadFriends() {
     } catch (err) {
         console.warn('Could not load friends:', err);
         renderFriends([
-            { name: "Алекс", pos: [55.155, 61.431], avatar: "/static/uploads/koliman.jpg" },
-            { name: "Мария", pos: [55.742, 37.61], avatar: "/static/uploads/koliman.jpg" }
+            { name: "Алекс", pos: [55.755, 37.618], avatar: "/static/uploads/koliman.jpg" },
+            { name: "Мария", pos: [55.742, 37.610], avatar: "/static/uploads/koliman.jpg" }
         ]);
     }
 }
@@ -593,6 +758,7 @@ document.getElementById('theme-toggle')?.addEventListener('click', () => {
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────
 
 function logout() {
+    if (requestsPollingInterval) clearInterval(requestsPollingInterval);
     fetch('/api/logout', { method: 'POST' })
         .finally(() => {
             localStorage.removeItem('blink_user');
