@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, Response
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session, Response
 from werkzeug.utils import secure_filename
 import data.db_session as db
 from data.models.user import User
@@ -8,14 +8,10 @@ from data.models.post import Post
 from data.models.hashtag import Hashtag
 from data.utilities.compress_photo import compress_photo
 
-DATABASE = Path("db/blink.db")
-klinb_app = Flask(__name__, static_folder='static')
-klinb_app.secret_key = "111"
-klinb_app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
-klinb_app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
+all_api = Blueprint('main', __name__)
 
 
-@klinb_app.route('/api/register', methods=['POST'])
+@all_api.route('/api/register', methods=['POST'])
 def register() -> tuple[Response, int]:
     data = request.get_json()
     name = data.get('name')
@@ -39,7 +35,7 @@ def register() -> tuple[Response, int]:
         {"status": "success", "message": f"Добро пожаловать на сайт klink, {name}", "user": user.to_dict()}), 200
 
 
-@klinb_app.route('/api/login', methods=['POST'])
+@all_api.route('/api/login', methods=['POST'])
 def login() -> tuple[Response, int]:
     data = request.get_json()
     username = data.get('username')
@@ -54,13 +50,13 @@ def login() -> tuple[Response, int]:
     return jsonify({"status": "success", "user": user.to_dict()}), 200
 
 
-@klinb_app.route('/api/logout', methods=['POST'])
+@all_api.route('/api/logout', methods=['POST'])
 def logout() -> tuple[Response, int]:
     session.clear()
-    return jsonify({"status": "success", "message": "Выход выполнен"}), 200
+    return jsonify({"status": "success", "message": "Вы вышли"}), 200
 
 
-@klinb_app.route('/api/current_user', methods=['GET'])
+@all_api.route('/api/current_user', methods=['GET'])
 def current_user() -> tuple[Response, int]:
     if 'user_id' in session:
         db_sess = db.create_session()
@@ -70,10 +66,10 @@ def current_user() -> tuple[Response, int]:
     return jsonify({"status": "error", "message": "еще не зашел :("}), 401
 
 
-@klinb_app.route('/new_post', methods=['GET', 'POST'])
+@all_api.route('/new_post', methods=['GET', 'POST'])
 def new_post() -> Response | str:
     if 'user_id' not in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('main.index'))
     if request.method == 'POST':
         user_id = session['user_id']
         content = request.form.get('content')
@@ -83,8 +79,8 @@ def new_post() -> Response | str:
             filename = secure_filename(image_file.filename)
             name, ext = os.path.splitext(filename)
             filename = f"{name}_{os.urandom(4).hex()}{ext}"
-            filepath = os.path.join(klinb_app.config['UPLOAD_FOLDER'], filename)
-            os.makedirs(klinb_app.config['UPLOAD_FOLDER'], exist_ok=True)
+            filepath = os.path.join(all_api.root_path, 'static', 'uploads', filename)
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
             image_file.save(filepath)
             compress_photo(filepath)
         db_sess = db.create_session()
@@ -92,18 +88,18 @@ def new_post() -> Response | str:
         db_sess.add(new_post)
         new_post.add_hashtags(session=db_sess)
         db_sess.commit()
-        return redirect(url_for('lenta'))
+        return redirect(url_for('main.lenta'))
     return render_template('new_post.html')
 
 
-@klinb_app.route('/lenta')
+@all_api.route('/lenta')
 def lenta() -> str:
     db_sess = db.create_session()
     posts = db_sess.query(Post).order_by(Post.id.desc()).all()
     return render_template('lenta.html', posts=posts)
 
 
-@klinb_app.route('/hashtag/<tag_name>')
+@all_api.route('/hashtag/<tag_name>')
 def hashtag_posts(tag_name: str) -> str:
     db_sess = db.create_session()
     hashtag = db_sess.query(Hashtag).filter(Hashtag.name == tag_name.lower()).first()
@@ -111,19 +107,19 @@ def hashtag_posts(tag_name: str) -> str:
     return render_template('lenta.html', posts=posts, hashtag=tag_name)
 
 
-@klinb_app.route('/api/posts', methods=['GET'])
+@all_api.route('/api/posts', methods=['GET'])
 def get_posts() -> tuple[Response, int]:
     db_sess = db.create_session()
     tag = request.args.get('hashtag')
     if tag:
         hashtag = db_sess.query(Hashtag).filter(Hashtag.name == tag.lower()).first()
-        posts = hashtag.posts if hashtag else []
+        posts = hashtag.posts
     else:
         posts = db_sess.query(Post).order_by(Post.id.desc()).all()
     return jsonify({"status": "success", "posts": [post.to_dict() for post in posts]}), 200
 
 
-@klinb_app.route('/api/posts', methods=['POST'])
+@all_api.route('/api/posts', methods=['POST'])
 def create_post_api() -> tuple[Response, int]:
     if 'user_id' not in session:
         return jsonify({"status": "error", "message": "Сначала авторизуйтесь"}), 401
@@ -142,12 +138,12 @@ def create_post_api() -> tuple[Response, int]:
     return jsonify({"status": "success", "post": new_post.to_dict()}), 201
 
 
-@klinb_app.route("/")
+@all_api.route("/")
 def index() -> str:
     return render_template('index.html')
 
 
-@klinb_app.route('/api/add_friend', methods=['POST'])
+@all_api.route('/api/add_friend', methods=['POST'])
 def add_friend() -> tuple[Response, int]:
     data = request.get_json()
     friend_name = data.get('username')
@@ -160,7 +156,7 @@ def add_friend() -> tuple[Response, int]:
     return jsonify({"status": "error", "message": "напиши сначала кого добавить"}), 400
 
 
-@klinb_app.route('/api/find_user/<username>', methods=['GET'])
+@all_api.route('/api/find_user/<username>', methods=['GET'])
 def find_user(username: str) -> tuple[Response, int]:
     db_sess = db.create_session()
     user = db_sess.query(User).filter(User.username == username).first()
@@ -169,7 +165,7 @@ def find_user(username: str) -> tuple[Response, int]:
     return jsonify({"status": "success", "user": user.to_dict()}), 200
 
 
-@klinb_app.route('/api/upload_avatar', methods=['POST'])
+@all_api.route('/api/upload_avatar', methods=['POST'])
 def upload_avatar() -> tuple[Response, int]:
     if 'user_id' not in session:
         return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
@@ -178,8 +174,9 @@ def upload_avatar() -> tuple[Response, int]:
     filename = secure_filename(image.filename)
     name, ext = os.path.splitext(filename)
     filename = f"{name}_{os.urandom(4).hex()}{ext}"
-    os.makedirs(klinb_app.config['UPLOAD_FOLDER'], exist_ok=True)
-    filepath = os.path.join(klinb_app.config['UPLOAD_FOLDER'], filename)
+    upload_folder = os.path.join(all_api.root_path, 'static', 'uploads')
+    os.makedirs(upload_folder, exist_ok=True)
+    filepath = os.path.join(upload_folder, filename)
     image.save(filepath)
 
     db_sess = db.create_session()
@@ -190,7 +187,7 @@ def upload_avatar() -> tuple[Response, int]:
     return jsonify({"status": "success", "message": "Успех", "avatar_url": avatar_url}), 200
 
 
-@klinb_app.route('/api/update_profile', methods=['POST'])
+@all_api.route('/api/update_profile', methods=['POST'])
 def update_profile() -> tuple[Response, int]:
     if 'user_id' not in session:
         return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
@@ -209,7 +206,7 @@ def update_profile() -> tuple[Response, int]:
     return jsonify({"status": 'success', 'message': 'Успех'}), 200
 
 
-@klinb_app.route('/api/update_location', methods=['POST'])
+@all_api.route('/api/update_location', methods=['POST'])
 def update_location() -> tuple[Response, int]:
     position = request.get_json()
     db_sess = db.create_session()
@@ -217,12 +214,3 @@ def update_location() -> tuple[Response, int]:
     user.geo_position = f"{position.get('lat')}, {position.get('lng')}"
     db_sess.commit()
     return jsonify({"status": 'success', 'message': 'Успех'}), 200
-
-
-def main() -> None:
-    db.init(DATABASE)
-    klinb_app.run(host='', port=8080, debug=True)
-
-
-if __name__ == '__main__':
-    main()
