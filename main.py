@@ -1,5 +1,5 @@
 import os
-from pathlib import Path
+from data.utilities.requests_to_dict import requests_to_dict
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session, Response
 from werkzeug.utils import secure_filename
 import data.db_session as db
@@ -148,11 +148,27 @@ def add_friend() -> tuple[Response, int]:
     data = request.get_json()
     friend_name = data.get('username')
     db_sess = db.create_session()
-    user_username = db_sess.get(User, session['user_id']).username
-    if friend_name and friend_name != user_username:
+    user = db_sess.get(User, session['user_id'])
+    friend = db_sess.query(User).filter(User.username == friend_name).first()
+    try:
+        a = user.outgoing_requests.split(',')
+        b = str(friend.id)
+
+        in_outgoing = a in b
+    except AttributeError:
+        in_outgoing = False
+    user.outgoing_requests = f'{user.outgoing_requests},{friend.to_dict()['id']}' \
+        if user.outgoing_requests is not None else f'{friend.id}'
+    friend.incoming_requests = f'{friend.incoming_requests},{user.to_dict()["id"]}'\
+        if friend.incoming_requests is not None else f'{user.id}'
+
+    if friend_name and friend_name != user.username and not in_outgoing:
+        db_sess.commit()
         return jsonify({"status": "success", "message": f"{friend_name} отправлен запрос в друзья"}), 200
-    elif friend_name and friend_name == user_username:
-        return jsonify({"status": "error", "message": f"Зачем себя добавлять?"}), 400
+    elif friend_name and friend_name == user.username:
+        return jsonify({"status": "error", "message": "Зачем себя добавлять?"}), 400
+    elif friend_name and friend_name != user.username and in_outgoing:
+        return jsonify({'status': 'error', 'message': 'Запрос уже отправлен!'}), 200
     return jsonify({"status": "error", "message": "напиши сначала кого добавить"}), 400
 
 
@@ -214,3 +230,79 @@ def update_location() -> tuple[Response, int]:
     user.geo_position = f"{position.get('lat')}, {position.get('lng')}"
     db_sess.commit()
     return jsonify({"status": 'success', 'message': 'Успех'}), 200
+
+
+@all_api.route('/api/friend_requests', methods=['GET'])
+def friend_requests() -> tuple[Response, int]:
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    if not user:
+        return jsonify(status='error', message='Не авторизован'), 401
+
+    try:
+        incoming_requests = [requests_to_dict(db_sess.query(User).filter(User.id == int(friend_id)).first())
+                             for friend_id in user.incoming_requests.split(',')]
+    except AttributeError:
+        incoming_requests = []
+
+    try:
+        outgoing_requests = [requests_to_dict(db_sess.query(User).filter(User.id == int(friend_id)).first())
+                             for friend_id in user.outgoing_requests.split(',')]
+    except AttributeError:
+        outgoing_requests = []
+
+    return jsonify({'incoming': incoming_requests, 'outgoing': outgoing_requests,
+                    'status': 'success'}), 200
+
+
+@all_api.route('/api/friend_request_respond', methods=['POST'])
+def friend_request_respond() -> tuple[Response, int]:
+    data = request.get_json()
+    user_id = data.get('request_id')
+    action = data.get('action')
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    if not user:
+        return jsonify(status='error', message='Не авторизован'), 401
+
+    friend = db_sess.query(User).filter(User.id == user_id).first()
+
+    if action == 'accept':
+        new_outgoing = user.outgoing_requests.split(',')
+        new_outgoing = new_outgoing.remove(str(user_id))
+        user.outgoing_requests = ','.join(new_outgoing) if new_outgoing is not None else None
+
+        new_incoming = friend.incoming_requests.split(',')
+        new_incoming = new_incoming.remove(str(user.id))
+        friend.incoming_requests = ','.join(new_incoming) if new_incoming is not None else None
+
+        user.friends = f'{user.friends},{friend.to_dict()['id']}' \
+            if user.friends is not None else f'{friend.id}'
+        friend.friends = f'{friend.friends},{user.to_dict()["id"]}' \
+            if friend.friends is not None else f'{user.id}'
+
+        db_sess.commit()
+        return jsonify({'status': 'success', 'text': 'Вы теперь друзья'}), 200
+    elif action == 'decline':
+        new_outgoing = friend.outgoing_requests.split(',')
+        new_outgoing = new_outgoing.remove(str(user_id))
+        friend.outgoing_requests = ','.join(new_outgoing) if new_outgoing is not None else None
+
+        new_incoming = user.incoming_requests.split(',')
+        new_incoming = new_incoming.remove(str(user.id))
+        user.incoming_requests = ','.join(new_incoming) if new_incoming is not None else None
+        db_sess.commit()
+        return jsonify({'status': 'success', 'text': 'Вы отклонили запрос'}), 200
+    elif action == 'cancel':
+        new_outgoing = user.outgoing_requests.split(',')
+        new_outgoing = new_outgoing.remove(str(user_id))
+        user.outgoing_requests = ','.join(new_outgoing) if new_outgoing is not None else None
+
+        new_incoming = friend.incoming_requests.split(',')
+        new_incoming = new_incoming.remove(str(user.id))
+        friend.incoming_requests = ','.join(new_incoming) if new_incoming is not None else None
+        db_sess.commit()
+        return jsonify({'status': 'success', 'text': 'Вы отклонили запрос'}), 200
+
+
+    return jsonify({'status': 'error', 'text': 'ты чет не то мне дал брух'}), 400

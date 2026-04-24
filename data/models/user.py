@@ -18,15 +18,19 @@ class User(SqlAlchemyBase):
     telegram = sql.Column(sql.String(100))
     geo_position = sql.Column(sql.String(100))
     friends = sql.Column(sql.String(1000))
+    incoming_requests = sql.Column(sql.String(1000))
+    outgoing_requests = sql.Column(sql.String(1000))
 
     posts = orm.relationship('Post', back_populates='user')
 
     @classmethod
     def create_user(cls, name: str, username: str, password: str, avatar: str = None, discord: str = None,
-                    telegram: str = None, geo_position: str = None, friends: str = None) -> "User":
+                    telegram: str = None, geo_position: str = None, friends: str = None,
+                    incoming_requests: str = None, outgoing_requests: str = None) -> "User":
         session = create_session()
         user = cls(name=name, username=username, avatar=avatar or '/static/uploads/volosatic.jpg', discord=discord,
-                   telegram=telegram, geo_position=geo_position, friends=friends)
+                   telegram=telegram, geo_position=geo_position, friends=friends, incoming_requests=incoming_requests,
+                   outgoing_requests=outgoing_requests)
         user.set_password(password)
         session.add(user)
         session.commit()
@@ -52,4 +56,5 @@ class User(SqlAlchemyBase):
     def to_dict(self) -> dict[str, Column[str] | Column[int]]:
         return {'id': self.id, 'name': self.name, 'username': self.username, 'avatar': self.avatar,
                 'discord': self.discord, 'telegram': self.telegram, 'geo_position': self.geo_position,
-                'friends': self.friends}
+                'friends': self.friends ,'incoming_requests': self.incoming_requests,
+                'outgoing_requests': self.outgoing_requests}
