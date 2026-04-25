@@ -19,7 +19,7 @@ def create_app() -> Flask:
 def main() -> None:
     db.init(DATABASE)
     app = create_app()
-    app.run(host='', port=9443)
+    app.run()
 
 
 if __name__ == '__main__':
