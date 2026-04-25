@@ -130,6 +130,33 @@
         </div>
     </div>
 
+    <!-- ── Модал: Обрезка аватарки ── -->
+    <div id="crop-modal" class="modal">
+        <div class="modal-content crop-modal-content">
+            <div class="modal-handle"></div>
+            <h3 class="modal-title">Обрезать фото</h3>
+            <p class="modal-subtitle">Перемещай и масштабируй изображение</p>
+
+            <div class="crop-stage">
+                <canvas id="crop-canvas"></canvas>
+                <!-- Угловые маркеры для визуального эффекта -->
+                <div class="crop-corner crop-corner--tl"></div>
+                <div class="crop-corner crop-corner--tr"></div>
+                <div class="crop-corner crop-corner--bl"></div>
+                <div class="crop-corner crop-corner--br"></div>
+            </div>
+
+            <div class="crop-zoom-row">
+                <span class="crop-zoom-icon">🔍</span>
+                <input type="range" id="crop-zoom" min="0" max="1" step="0.001" value="0">
+                <span class="crop-zoom-icon">🔎</span>
+            </div>
+
+            <button class="save-btn" onclick="confirmCrop()">Применить</button>
+            <button class="close-btn" onclick="closeCropModal()">Отмена</button>
+        </div>
+    </div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

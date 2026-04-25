@@ -415,41 +415,249 @@ async function saveProfile() {
     }
 }
 
-// ─── AVATAR UPLOAD ────────────────────────────────────────────────────────────
+// ─── AVATAR CROP ──────────────────────────────────────────────────────────────
 
-document.getElementById('avatar-input')?.addEventListener('change', async function (e) {
+const CROP_PX = 272; // размер холста (совпадает с CSS)
+
+const cropState = {
+    img:           null,
+    scale:         1,
+    minScale:      1,
+    maxScale:      4,
+    offsetX:       0,
+    offsetY:       0,
+    dragging:      false,
+    startX:        0,
+    startY:        0,
+    startOffsetX:  0,
+    startOffsetY:  0,
+    lastPinchDist: null
+};
+
+/* Открываем кроппер, загружая файл в Image */
+function openCropModal(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            cropState.img       = img;
+            cropState.minScale  = Math.max(CROP_PX / img.width, CROP_PX / img.height);
+            cropState.maxScale  = cropState.minScale * 4;
+            cropState.scale     = cropState.minScale;
+            cropState.offsetX   = 0;
+            cropState.offsetY   = 0;
+
+            const zoomEl = document.getElementById('crop-zoom');
+            if (zoomEl) zoomEl.value = '0'; // слайдер идёт от 0 до 1
+
+            drawCrop();
+            document.getElementById('crop-modal')?.classList.add('active');
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function closeCropModal() {
+    document.getElementById('crop-modal')?.classList.remove('active');
+    const inp = document.getElementById('avatar-input');
+    if (inp) inp.value = '';
+}
+
+/* Рендер изображения на холсте */
+function drawCrop() {
+    const canvas = document.getElementById('crop-canvas');
+    if (!canvas || !cropState.img) return;
+
+    canvas.width  = CROP_PX;
+    canvas.height = CROP_PX;
+    const ctx = canvas.getContext('2d');
+    const { img, scale, offsetX, offsetY } = cropState;
+    const w = img.width  * scale;
+    const h = img.height * scale;
+    const x = (CROP_PX - w) / 2 + offsetX;
+    const y = (CROP_PX - h) / 2 + offsetY;
+
+    ctx.clearRect(0, 0, CROP_PX, CROP_PX);
+    ctx.drawImage(img, x, y, w, h);
+}
+
+/* Не даём выехать за границы круга */
+function clampOffset() {
+    const { img, scale } = cropState;
+    const w = img.width  * scale;
+    const h = img.height * scale;
+    const maxX = Math.max(0, (w - CROP_PX) / 2);
+    const maxY = Math.max(0, (h - CROP_PX) / 2);
+    cropState.offsetX = Math.max(-maxX, Math.min(maxX, cropState.offsetX));
+    cropState.offsetY = Math.max(-maxY, Math.min(maxY, cropState.offsetY));
+}
+
+/* Подтверждаем кроп → загружаем на сервер */
+async function confirmCrop() {
+    const output = document.createElement('canvas');
+    output.width  = CROP_PX;
+    output.height = CROP_PX;
+    const ctx = output.getContext('2d');
+
+    // Круговой клип
+    ctx.beginPath();
+    ctx.arc(CROP_PX / 2, CROP_PX / 2, CROP_PX / 2, 0, Math.PI * 2);
+    ctx.clip();
+
+    const { img, scale, offsetX, offsetY } = cropState;
+    const w = img.width  * scale;
+    const h = img.height * scale;
+    const x = (CROP_PX - w) / 2 + offsetX;
+    const y = (CROP_PX - h) / 2 + offsetY;
+    ctx.drawImage(img, x, y, w, h);
+
+    closeCropModal();
+
+    const statusEl = document.getElementById('avatar-upload-status');
+    if (statusEl) { statusEl.textContent = 'Загрузка...'; statusEl.className = 'upload-status'; }
+
+    output.toBlob(async (blob) => {
+        const formData = new FormData();
+        formData.append('avatar', blob, 'avatar.jpg');
+        try {
+            const response = await fetch('/api/upload_avatar', { method: 'POST', body: formData });
+            const data     = await response.json();
+            if (response.ok && data.avatar_url) {
+                userState.avatar = data.avatar_url;
+                saveStateLocally();
+                updateUI();
+                if (statusEl) { statusEl.textContent = '✓ Фото обновлено'; statusEl.className = 'upload-status'; }
+            } else {
+                if (statusEl) { statusEl.textContent = data.message || 'Ошибка загрузки'; statusEl.className = 'upload-status error'; }
+            }
+        } catch (err) {
+            console.error('Avatar upload error:', err);
+            if (statusEl) { statusEl.textContent = 'Ошибка соединения'; statusEl.className = 'upload-status error'; }
+        }
+    }, 'image/jpeg', 0.92);
+}
+
+/* Расстояние между двумя пальцами (пинч) */
+function getPinchDist(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+/* Перевод значения слайдера [0..1] → реальный scale */
+function sliderToScale(v) {
+    const { minScale, maxScale } = cropState;
+    return minScale + (maxScale - minScale) * v;
+}
+
+/* Инициализация событий кроппера */
+function initCropCanvas() {
+    const stage = document.querySelector('.crop-stage');
+    if (!stage) return;
+
+    // ── Mouse ──
+    stage.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        cropState.dragging     = true;
+        cropState.startX       = e.clientX;
+        cropState.startY       = e.clientY;
+        cropState.startOffsetX = cropState.offsetX;
+        cropState.startOffsetY = cropState.offsetY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!cropState.dragging) return;
+        cropState.offsetX = cropState.startOffsetX + (e.clientX - cropState.startX);
+        cropState.offsetY = cropState.startOffsetY + (e.clientY - cropState.startY);
+        clampOffset();
+        drawCrop();
+    });
+
+    window.addEventListener('mouseup', () => { cropState.dragging = false; });
+
+    // Колёсико мыши — зум
+    stage.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const { minScale, maxScale } = cropState;
+        const delta = e.deltaY > 0 ? -0.05 : 0.05;
+        cropState.scale = Math.max(minScale, Math.min(maxScale, cropState.scale + delta * (maxScale - minScale)));
+        clampOffset();
+        drawCrop();
+        // синхронизируем слайдер
+        const zoomEl = document.getElementById('crop-zoom');
+        if (zoomEl) {
+            zoomEl.value = String((cropState.scale - minScale) / (maxScale - minScale));
+        }
+    }, { passive: false });
+
+    // ── Touch ──
+    stage.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            cropState.dragging      = true;
+            cropState.startX        = e.touches[0].clientX;
+            cropState.startY        = e.touches[0].clientY;
+            cropState.startOffsetX  = cropState.offsetX;
+            cropState.startOffsetY  = cropState.offsetY;
+            cropState.lastPinchDist = null;
+        } else if (e.touches.length === 2) {
+            cropState.dragging      = false;
+            cropState.lastPinchDist = getPinchDist(e.touches);
+        }
+    }, { passive: true });
+
+    stage.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1 && cropState.dragging) {
+            cropState.offsetX = cropState.startOffsetX + (e.touches[0].clientX - cropState.startX);
+            cropState.offsetY = cropState.startOffsetY + (e.touches[0].clientY - cropState.startY);
+            clampOffset();
+            drawCrop();
+        } else if (e.touches.length === 2) {
+            const dist  = getPinchDist(e.touches);
+            if (cropState.lastPinchDist) {
+                const ratio    = dist / cropState.lastPinchDist;
+                const { minScale, maxScale } = cropState;
+                cropState.scale = Math.max(minScale, Math.min(maxScale, cropState.scale * ratio));
+                clampOffset();
+                drawCrop();
+                const zoomEl = document.getElementById('crop-zoom');
+                if (zoomEl) {
+                    zoomEl.value = String((cropState.scale - minScale) / (maxScale - minScale));
+                }
+            }
+            cropState.lastPinchDist = dist;
+        }
+    }, { passive: false });
+
+    stage.addEventListener('touchend', () => {
+        cropState.dragging      = false;
+        cropState.lastPinchDist = null;
+    });
+
+    // ── Zoom slider ──
+    document.getElementById('crop-zoom')?.addEventListener('input', (e) => {
+        cropState.scale = sliderToScale(parseFloat(e.target.value));
+        clampOffset();
+        drawCrop();
+    });
+}
+
+// ─── AVATAR UPLOAD (перехватываем → кроппер) ──────────────────────────────────
+
+document.getElementById('avatar-input')?.addEventListener('change', function (e) {
     const file = e.target.files[0];
     if (!file) return;
 
     const statusEl = document.getElementById('avatar-upload-status');
 
-    if (file.size > 2 * 1024 * 1024) {
-        if (statusEl) { statusEl.textContent = 'Файл слишком большой (макс. 2 МБ)'; statusEl.className = 'upload-status error'; }
+    if (file.size > 10 * 1024 * 1024) {
+        if (statusEl) { statusEl.textContent = 'Файл слишком большой (макс. 10 МБ)'; statusEl.className = 'upload-status error'; }
+        e.target.value = '';
         return;
     }
 
-    if (statusEl) { statusEl.textContent = 'Загрузка...'; statusEl.className = 'upload-status'; }
-
-    const formData = new FormData();
-    formData.append('avatar', file);
-
-    try {
-        const response = await fetch('/api/upload_avatar', { method: 'POST', body: formData });
-        const data = await response.json();
-
-        if (response.ok && data.avatar_url) {
-            userState.avatar = data.avatar_url;
-            saveStateLocally();
-            updateUI();
-            if (statusEl) { statusEl.textContent = '✓ Фото обновлено'; statusEl.className = 'upload-status'; }
-        } else {
-            if (statusEl) { statusEl.textContent = data.message || 'Ошибка загрузки'; statusEl.className = 'upload-status error'; }
-        }
-    } catch (err) {
-        console.error('Avatar upload error:', err);
-        if (statusEl) { statusEl.textContent = 'Ошибка соединения'; statusEl.className = 'upload-status error'; }
-    }
-
+    openCropModal(file);
     e.target.value = '';
 });
 
@@ -805,3 +1013,4 @@ function showToast(message) {
 updateUI();
 checkAuth();
 startLocationTracking();
+initCropCanvas();
