@@ -155,8 +155,9 @@ def add_friend() -> tuple[Response, int]:
     try:
         a = user.outgoing_requests.split(',')
         b = str(friend.id)
-
-        in_outgoing = a in b
+        print(a)
+        print(b)
+        in_outgoing = b in a
     except AttributeError:
         in_outgoing = False
     user.outgoing_requests = f'{user.outgoing_requests},{friend.to_dict()['id']}' \
@@ -318,10 +319,8 @@ def get_friends() -> tuple[Response, int]:
     if not user:
         return jsonify(status='error', message='Не авторизован'), 401
 
-    try:
-        friends = [friend_to_point(db_sess.query(User).filter(User.id == int(friend)).first())
-                   for friend in user.friends.split(',')]
-    except AttributeError:
-        friends = []
+    friends = [friend_to_point(db_sess.query(User).filter(User.id == int(friend)).first())
+               for friend in user.friends.split(',')
+               if friend_to_point(db_sess.query(User).filter(User.id == int(friend)).first()) is not None]
 
     return jsonify({'status': 'success', 'friends': friends}), 200
