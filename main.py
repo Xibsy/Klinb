@@ -1,5 +1,6 @@
 import os
-
+import base64
+from secret import SECRET_KEY
 from data.utilities.friend_to_point import friend_to_point
 from data.utilities.requests_to_dict import requests_to_dict
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session, Response
@@ -27,7 +28,8 @@ def register() -> tuple[Response, int]:
         return jsonify({"status": "error", "message": "заполните бланк"}), 400
     if len(password) < 4:
         return jsonify({"status": "error", "message": "минимум 4 символа"}), 400
-    user = User.create_user(name=name, username=username, password=password, avatar=avatar, discord=discord, telegram=telegram)
+    user = User.create_user(name=name, username=username, password=password, avatar=avatar, discord=discord,
+                            telegram=telegram)
     if not user:
         return jsonify({"status": "error", "message": "Пользователь с таким username уже существует"}), 400
 
@@ -162,7 +164,7 @@ def add_friend() -> tuple[Response, int]:
         in_outgoing = False
     user.outgoing_requests = f'{user.outgoing_requests},{friend.to_dict()['id']}' \
         if user.outgoing_requests is not None else f'{friend.id}'
-    friend.incoming_requests = f'{friend.incoming_requests},{user.to_dict()["id"]}'\
+    friend.incoming_requests = f'{friend.incoming_requests},{user.to_dict()["id"]}' \
         if friend.incoming_requests is not None else f'{user.id}'
 
     if friend_name and friend_name != user.username and not in_outgoing:
@@ -308,7 +310,6 @@ def friend_request_respond() -> tuple[Response, int]:
         db_sess.commit()
         return jsonify({'status': 'success', 'text': 'Вы отклонили запрос'}), 200
 
-
     return jsonify({'status': 'error', 'text': 'ты чет не то мне дал брух'}), 400
 
 
@@ -324,3 +325,29 @@ def get_friends() -> tuple[Response, int]:
                if friend_to_point(db_sess.query(User).filter(User.id == int(friend)).first()) is not None]
 
     return jsonify({'status': 'success', 'friends': friends}), 200
+
+
+@all_api.route("/api/photos_by_hashtag/<tag_name>", methods=['GET'])
+def get_photos_by_hashtag(tag_name: str) -> tuple[Response, int]:
+    api_key = request.args.get('apikey')
+    if not api_key or api_key != SECRET_KEY:
+        return jsonify({"error": "Bruh, тебе нужен ключ, добудь его в бою"}), 401
+
+    db_sess = db.create_session()
+    hashtag = db_sess.query(Hashtag).filter(Hashtag.name == tag_name.lower()).first()
+    posts_with_photos = []
+
+    if not hashtag:
+        return jsonify({"hashtag": tag_name, "count": 0, "photos": []}), 200
+    for post in hashtag.posts:
+        if not post.image:
+            continue
+        image = os.path.join(all_api.root_path, 'static', 'uploads', post.image)
+        with open(image, 'rb') as img_file:
+            image_byte = base64.b64encode(img_file.read()).decode('utf-8')
+        posts_with_photos.append(
+            {"img": image_byte, "post_content": post.content, "author_username": post.user.username,
+             "author_name": post.user.name})
+
+    db_sess.close()
+    return jsonify({"hashtag": tag_name, "count": len(posts_with_photos), "photos": posts_with_photos}), 200
