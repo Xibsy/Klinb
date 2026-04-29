@@ -1,4 +1,4 @@
-<img width="2048" height="2048" alt="Без названия125_20260429194039" src="https://github.com/user-attachments/assets/b6d4d3d7-57a9-4928-9a61-ee5842f22644" />
+<img width="512" height="512" alt="Без названия125_20260429194039" src="https://github.com/user-attachments/assets/b6d4d3d7-57a9-4928-9a61-ee5842f22644" />
 ## Klinb
 
 Это будет смесью блинка и карточек с инфо о человеке. Поговорим о функциях этого сайта: 
