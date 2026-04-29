@@ -1,5 +1,6 @@
 import re
 import sqlalchemy as sql
+import datetime
 import sqlalchemy.orm as orm
 from ..db_session import SqlAlchemyBase
 
@@ -11,9 +12,11 @@ class Post(SqlAlchemyBase):
     user_id = sql.Column(sql.Integer, sql.ForeignKey("users.id"), nullable=False)
     content = sql.Column(sql.Text, nullable=True)
     image = sql.Column(sql.String(200), nullable=True)
+    created_at = sql.Column(sql.DateTime, default=datetime.datetime.now())
 
     user = orm.relationship("User", back_populates="posts")
     hashtags = orm.relationship("Hashtag", secondary="post_hashtags", back_populates="posts")
+    likes = orm.relationship("PostLike", backref="post", lazy="dynamic")
 
     def found_hashtags(self) -> list[str]:
         return re.findall(r'#(\w+)', self.content or "")
@@ -29,9 +32,15 @@ class Post(SqlAlchemyBase):
             if tag not in self.hashtags:
                 self.hashtags.append(tag)
 
-    def to_dict(self) -> dict[str, list[str]]:
-        found_hashtag: list[str] = []
+    def to_dict(self, current_user_id=None) -> dict[str, list[str]]:
+        found_hashtag = []
         for teg in self.hashtags:
             found_hashtag.append(teg.name)
+        likes_count = self.likes.count()
+        is_liked = False
+        if current_user_id:
+            is_liked = self.likes.filter_by(user_id=current_user_id).first()
+
         return {'id': self.id, 'user_id': self.user_id, 'username': self.user.username, 'content': self.content,
-                'image': self.image, 'hashtags': found_hashtag}
+            'image': self.image, 'hashtags': found_hashtag, 'created_at': self.created_at.isoformat(),
+            'likes': likes_count, 'liked': is_liked}

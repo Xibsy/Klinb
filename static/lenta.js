@@ -89,4 +89,32 @@ function buildInitialsEl(username) {
     return div;
 }
 
-document.addEventListener('DOMContentLoaded', initAvatars);
+// ─── Like buttons ───────────────────────────────────
+function initLikeButtons() {
+    document.querySelectorAll('.like-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const postId = btn.dataset.postId;
+            if (!postId) return;
+
+            try {
+                const response = await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    btn.classList.toggle('liked', data.liked);
+                    const countEl = btn.querySelector('.like-count');
+                    if (countEl) countEl.textContent = data.likes;
+                } else {
+                    console.warn('Like error:', data.message);
+                }
+            } catch (err) {
+                console.error('Like request failed:', err);
+            }
+        });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    initAvatars();
+    initLikeButtons();
+});

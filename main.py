@@ -9,6 +9,7 @@ import data.db_session as db
 from data.models.user import User
 from data.models.post import Post
 from data.models.hashtag import Hashtag
+from data.models.post_like import PostLike
 from data.utilities.compress_photo import compress_photo
 
 all_api = Blueprint('main', __name__)
@@ -120,7 +121,10 @@ def get_posts() -> tuple[Response, int]:
         posts = hashtag.posts
     else:
         posts = db_sess.query(Post).order_by(Post.id.desc()).all()
-    return jsonify({"status": "success", "posts": [post.to_dict() for post in posts]}), 200
+
+    current_user_id = session.get('user_id')
+    return jsonify(
+        {"status": "success", "posts": [post.to_dict(current_user_id=current_user_id) for post in posts]}), 200
 
 
 @all_api.route('/api/posts', methods=['POST'])
@@ -351,3 +355,23 @@ def get_photos_by_hashtag(tag_name: str) -> tuple[Response, int]:
 
     db_sess.close()
     return jsonify({"hashtag": tag_name, "count": len(posts_with_photos), "photos": posts_with_photos}), 200
+
+@all_api.route('/api/posts/<int:post_id>/like', methods=['POST'])
+def like(post_id: int):
+    if 'user_id' not in session:
+        return jsonify({"status": "error", "message": "Зарегайся"}), 401
+
+    db_sess = db.create_session()
+    user_id = session['user_id']
+    real = db_sess.query(PostLike).filter_by(user_id=user_id, post_id=post_id).first()
+
+    if real:
+        db_sess.delete(real)
+        db_sess.commit()
+        likes = db_sess.query(PostLike).filter_by(post_id=post_id).count()
+        return jsonify({"status": "success", "liked": False, "likes": likes})
+
+    db_sess.add(PostLike(user_id=user_id, post_id=post_id))
+    db_sess.commit()
+    likes = db_sess.query(PostLike).filter_by(post_id=post_id).count()
+    return jsonify({"status": "success", "liked": True, "likes": likes})

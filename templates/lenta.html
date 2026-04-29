@@ -43,6 +43,7 @@
 
                 <div class="post-meta">
                     <span class="post-username">@{{ post.user.username if post.user else "unknown" }}</span>
+                    <span class="post-time">{{ post.created_at.strftime('%d.%m.%Y %H:%M') if post.created_at else '' }}</span>
                 </div>
             </div>
 
@@ -63,6 +64,11 @@
                 {% endfor %}
             </div>
             {% endif %}
+
+            <button class="like-btn" data-post-id="{{ post.id }}">
+    <span class="like-icon">❤️</span>
+    <span class="like-count">{{ post.likes.count() if post.likes else 0 }}</span>
+</button>
         </article>
         {% else %}
         <div class="empty-state">
