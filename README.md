@@ -1,4 +1,4 @@
-![Uploading Без названия125_20260429194039.png…]()
+<img width="2048" height="2048" alt="Без названия125_20260429194039" src="https://github.com/user-attachments/assets/b6d4d3d7-57a9-4928-9a61-ee5842f22644" />
 ## Klinb
 
 Это будет смесью блинка и карточек с инфо о человеке. Поговорим о функциях этого сайта: 
@@ -11,6 +11,3 @@
 P.S Я грамотей
 P.S2 Я тоже
 P.S3 Ну ладна
-
-Аэээ ниже наша иконка 
-![https://raw.githubusercontent.com/Xibsy/Klinb/main/%D0%91%D0%B5%D0%B7%20%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F125_20260429194039.png]
