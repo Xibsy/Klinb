@@ -77,7 +77,7 @@ def current_user() -> tuple[Response, int]:
 @api.route('/new_post', methods=['GET', 'POST'])
 def new_post() -> Response | str:
     if 'user_id' not in session:
-        return redirect(url_for('main.index'))
+        return redirect(url_for('pages.index'))
     if request.method == 'POST':
         user_id = session['user_id']
         content = request.form.get('content')
@@ -96,7 +96,7 @@ def new_post() -> Response | str:
         db_sess.add(new_post)
         new_post.add_hashtags(session=db_sess)
         db_sess.commit()
-        return redirect(url_for('main.lenta'))
+        return redirect(url_for('pages.lenta'))
     return render_template('new_post.html')
 
 
