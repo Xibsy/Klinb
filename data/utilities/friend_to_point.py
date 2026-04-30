@@ -5,6 +5,7 @@ def friend_to_point(friend) -> dict | None:
         'name': friend.name,
         'avatar': friend.avatar,
         'username': friend.username,
+        'id': friend.id,
         }
         return point
     except AttributeError:

@@ -379,6 +379,34 @@ def html_response(username: str) -> tuple[Response, int]:
     return response, 200
 
 
+@api.route('/api/delete_friend', methods=['POST'])
+def delete_user() -> tuple[Response, int]:
+    data = request.get_json()
+    id = data['friend_id']
+
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    if not user:
+        return jsonify({'status': 'error', 'message': 'ты точно залогинился?'}), 401
+
+    friend = db_sess.query(User).filter(User.id == id).first()
+
+    if not friend:
+        return jsonify({'status': 'error', 'message': 'ты чет не попал'}), 404
+
+    new_user_friends = user.friends.split(',')
+    new_user_friends.remove(str(id))
+    user.friends = ','.join(new_user_friends) if new_user_friends else None
+
+    new_friend_friends = friend.friends.split(',')
+    new_friend_friends.remove(str(user.id))
+    friend.friends = ','.join(new_friend_friends) if new_friend_friends else None
+
+    db_sess.commit()
+
+    return jsonify({'status': 'success', 'message': f'Успех - {friend.name} удален из друзей'}), 200
+
+
 @api.after_request
 def add_cors_headers(response) -> tuple[Response, int]:
     response.headers['Access-Control-Allow-Origin'] = '*'

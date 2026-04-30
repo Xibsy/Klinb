@@ -859,6 +859,7 @@ body {
     opacity: 0.7;
     transition: opacity 0.2s;
     z-index: 10;
+    pointer-events: auto;
 }
 
 .friend-menu-btn:hover {

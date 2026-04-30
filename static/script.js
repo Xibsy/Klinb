@@ -983,6 +983,7 @@ function closeFriendProfile() {
 }
 
 function toggleFriendMenu() {
+    if (event) event.stopPropagation();
     const menu = document.getElementById('friend-menu-dropdown');
     if (menu) {
         const isVisible = menu.style.display === 'block';
@@ -999,7 +1000,7 @@ async function removeCurrentFriend() {
     }
 
     try {
-        const response = await fetch('/api/delet_friend', {
+        const response = await fetch('/api/delete_friend', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ friend_id: friendId })
