@@ -26,6 +26,7 @@ try {
 let isAuthenticated = false;
 let currentRequestsTab = 'incoming';
 let requestsPollingInterval = null;
+let currentFriendForMenu = null;   // храним друга, для которого открыто меню
 
 // ─── MAP ──────────────────────────────────────────────────────────────────────
 
@@ -318,7 +319,7 @@ function validateUsername(username) {
     return null;
 }
 
-// ─── UI ───────────────────────────────────────────────────────────────────────
+// ─── UI (свои профиль, скрытие строк) ───────────────────────────────────────────────────────────────
 
 function updateUI() {
     document.body.setAttribute('data-theme', userState.theme);
@@ -340,6 +341,18 @@ function updateUI() {
     if (displayDiscord)  displayDiscord.textContent  = userState.discord  || 'не указан';
     if (displayTelegram) displayTelegram.textContent = userState.telegram || 'не указан';
 
+    // Скрывать строки соцсетей, если они пустые (в своём профиле)
+    const mySocialInfo = document.getElementById('my-social-info');
+    if (mySocialInfo) {
+        const discordRow  = mySocialInfo.querySelector('.discord-row');
+        const telegramRow = mySocialInfo.querySelector('.telegram-row');
+        const hasD = !!(userState.discord  && userState.discord  !== 'не указан');
+        const hasT = !!(userState.telegram && userState.telegram !== 'не указан');
+        if (discordRow)  discordRow.style.display  = hasD ? 'flex' : 'none';
+        if (telegramRow) telegramRow.style.display = hasT ? 'flex' : 'none';
+        mySocialInfo.style.display = (hasD || hasT) ? '' : 'none';
+    }
+
     const editAvatar    = document.getElementById('edit-avatar');
     const inputName     = document.getElementById('input-name');
     const inputUsername = document.getElementById('input-username');
@@ -353,7 +366,7 @@ function updateUI() {
     if (inputTelegram) inputTelegram.value = userState.telegram;
 }
 
-// ─── PROFILE ──────────────────────────────────────────────────────────────────
+// ─── PROFILE (свой) ──────────────────────────────────────────────────────────────────
 
 function toggleEdit(isEdit) {
     document.getElementById('view-mode').style.display = isEdit ? 'none'  : 'block';
@@ -417,7 +430,7 @@ async function saveProfile() {
 
 // ─── AVATAR CROP ──────────────────────────────────────────────────────────────
 
-const CROP_PX = 272; // размер холста (совпадает с CSS)
+const CROP_PX = 272;
 
 const cropState = {
     img:           null,
@@ -434,7 +447,6 @@ const cropState = {
     lastPinchDist: null
 };
 
-/* Открываем кроппер, загружая файл в Image */
 function openCropModal(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -448,7 +460,7 @@ function openCropModal(file) {
             cropState.offsetY   = 0;
 
             const zoomEl = document.getElementById('crop-zoom');
-            if (zoomEl) zoomEl.value = '0'; // слайдер идёт от 0 до 1
+            if (zoomEl) zoomEl.value = '0';
 
             drawCrop();
             document.getElementById('crop-modal')?.classList.add('active');
@@ -464,7 +476,6 @@ function closeCropModal() {
     if (inp) inp.value = '';
 }
 
-/* Рендер изображения на холсте */
 function drawCrop() {
     const canvas = document.getElementById('crop-canvas');
     if (!canvas || !cropState.img) return;
@@ -482,7 +493,6 @@ function drawCrop() {
     ctx.drawImage(img, x, y, w, h);
 }
 
-/* Не даём выехать за границы круга */
 function clampOffset() {
     const { img, scale } = cropState;
     const w = img.width  * scale;
@@ -493,14 +503,12 @@ function clampOffset() {
     cropState.offsetY = Math.max(-maxY, Math.min(maxY, cropState.offsetY));
 }
 
-/* Подтверждаем кроп → загружаем на сервер */
 async function confirmCrop() {
     const output = document.createElement('canvas');
     output.width  = CROP_PX;
     output.height = CROP_PX;
     const ctx = output.getContext('2d');
 
-    // Круговой клип
     ctx.beginPath();
     ctx.arc(CROP_PX / 2, CROP_PX / 2, CROP_PX / 2, 0, Math.PI * 2);
     ctx.clip();
@@ -538,25 +546,21 @@ async function confirmCrop() {
     }, 'image/jpeg', 0.92);
 }
 
-/* Расстояние между двумя пальцами (пинч) */
 function getPinchDist(touches) {
     const dx = touches[0].clientX - touches[1].clientX;
     const dy = touches[0].clientY - touches[1].clientY;
     return Math.sqrt(dx * dx + dy * dy);
 }
 
-/* Перевод значения слайдера [0..1] → реальный scale */
 function sliderToScale(v) {
     const { minScale, maxScale } = cropState;
     return minScale + (maxScale - minScale) * v;
 }
 
-/* Инициализация событий кроппера */
 function initCropCanvas() {
     const stage = document.querySelector('.crop-stage');
     if (!stage) return;
 
-    // ── Mouse ──
     stage.addEventListener('mousedown', (e) => {
         e.preventDefault();
         cropState.dragging     = true;
@@ -576,7 +580,6 @@ function initCropCanvas() {
 
     window.addEventListener('mouseup', () => { cropState.dragging = false; });
 
-    // Колёсико мыши — зум
     stage.addEventListener('wheel', (e) => {
         e.preventDefault();
         const { minScale, maxScale } = cropState;
@@ -584,14 +587,12 @@ function initCropCanvas() {
         cropState.scale = Math.max(minScale, Math.min(maxScale, cropState.scale + delta * (maxScale - minScale)));
         clampOffset();
         drawCrop();
-        // синхронизируем слайдер
         const zoomEl = document.getElementById('crop-zoom');
         if (zoomEl) {
             zoomEl.value = String((cropState.scale - minScale) / (maxScale - minScale));
         }
     }, { passive: false });
 
-    // ── Touch ──
     stage.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
             cropState.dragging      = true;
@@ -635,15 +636,12 @@ function initCropCanvas() {
         cropState.lastPinchDist = null;
     });
 
-    // ── Zoom slider ──
     document.getElementById('crop-zoom')?.addEventListener('input', (e) => {
         cropState.scale = sliderToScale(parseFloat(e.target.value));
         clampOffset();
         drawCrop();
     });
 }
-
-// ─── AVATAR UPLOAD (перехватываем → кроппер) ──────────────────────────────────
 
 document.getElementById('avatar-input')?.addEventListener('change', function (e) {
     const file = e.target.files[0];
@@ -721,7 +719,7 @@ async function confirmAddFriend(username) {
         if (data.status === 'success') {
             showToast('Запрос отправлен!');
             closeAddFriendModal();
-            loadFriendRequests(); // обновить счётчик
+            loadFriendRequests();
         } else {
             showToast('Ошибка: ' + data.message);
         }
@@ -733,20 +731,12 @@ async function confirmAddFriend(username) {
 
 // ─── FRIEND REQUESTS ──────────────────────────────────────────────────────────
 
-/**
- * Запускаем фоновый опрос каждые 30 секунд,
- * чтобы обновлять бейдж уведомлений.
- */
 function startRequestsPolling() {
-    loadFriendRequests(); // сразу при входе
+    loadFriendRequests();
     if (requestsPollingInterval) clearInterval(requestsPollingInterval);
     requestsPollingInterval = setInterval(loadFriendRequests, 30_000);
 }
 
-/**
- * Загружаем входящие и исходящие запросы,
- * обновляем бейдж на кнопке 🔔.
- */
 async function loadFriendRequests() {
     if (!isAuthenticated) return;
 
@@ -759,11 +749,9 @@ async function loadFriendRequests() {
         const incoming = data.incoming || [];
         const outgoing = data.outgoing || [];
 
-        // Обновляем счётчики вкладок
         document.getElementById('incoming-count').textContent = incoming.length;
         document.getElementById('outgoing-count').textContent = outgoing.length;
 
-        // Бейдж на кнопке (только входящие — они требуют действия)
         const badge = document.getElementById('requests-badge');
         if (badge) {
             if (incoming.length > 0) {
@@ -774,7 +762,6 @@ async function loadFriendRequests() {
             }
         }
 
-        // Если модал открыт — перерисовываем список
         const modal = document.getElementById('requests-modal');
         if (modal?.classList.contains('active')) {
             renderRequestsList(incoming, outgoing);
@@ -792,7 +779,6 @@ function openRequestsModal() {
 
     currentRequestsTab = 'incoming';
 
-    // Сбросить стиль вкладок
     document.getElementById('tab-incoming')?.classList.add('active');
     document.getElementById('tab-outgoing')?.classList.remove('active');
 
@@ -814,7 +800,6 @@ function switchRequestsTab(tab) {
     document.getElementById('tab-incoming')?.classList.toggle('active', tab === 'incoming');
     document.getElementById('tab-outgoing')?.classList.toggle('active', tab === 'outgoing');
 
-    // Перерисовать без нового запроса, данные уже в DOM-счётчиках
     loadFriendRequests().then(result => {
         if (result) renderRequestsList(result.incoming, result.outgoing);
     });
@@ -839,7 +824,6 @@ function renderRequestsList(incoming, outgoing) {
     listEl.innerHTML = '';
 
     items.forEach(req => {
-        // req = { id, name, username, avatar }
         const card = document.createElement('div');
         card.className = 'request-card';
         card.id = `req-card-${req.id}`;
@@ -866,12 +850,7 @@ function renderRequestsList(incoming, outgoing) {
     });
 }
 
-/**
- * Принять, отклонить или отменить запрос.
- * action: 'accept' | 'decline' | 'cancel'
- */
 async function respondFriendRequest(requestId, action) {
-    // Быстро убираем карточку из DOM для плавности UX
     const card = document.getElementById(`req-card-${requestId}`);
     if (card) {
         card.style.opacity = '0';
@@ -896,11 +875,11 @@ async function respondFriendRequest(requestId, action) {
             };
             showToast(messages[action] || 'Готово');
 
-            if (action === 'accept') loadFriends(); // обновить список друзей на карте
-            loadFriendRequests(); // обновить бейдж
+            if (action === 'accept') loadFriends();
+            loadFriendRequests();
         } else {
             showToast('Ошибка: ' + (data.message || 'попробуйте снова'));
-            if (card) { card.style.opacity = '1'; card.style.transform = 'none'; } // вернуть
+            if (card) { card.style.opacity = '1'; card.style.transform = 'none'; }
         }
     } catch (err) {
         console.error('Respond friend request error:', err);
@@ -909,7 +888,7 @@ async function respondFriendRequest(requestId, action) {
     }
 }
 
-// ─── FRIENDS LIST ─────────────────────────────────────────────────────────────
+// ─── FRIENDS LIST & MAP MARKERS ─────────────────────────────────────────────────────────
 
 async function loadFriends() {
     try {
@@ -920,10 +899,7 @@ async function loadFriends() {
         }
     } catch (err) {
         console.warn('Could not load friends:', err);
-        renderFriends([
-            { name: "Алекс", pos: [55.755, 37.618], avatar: "/static/uploads/koliman.jpg" },
-            { name: "Мария", pos: [55.742, 37.610], avatar: "/static/uploads/koliman.jpg" }
-        ]);
+        renderFriends([]);
     }
 }
 
@@ -932,28 +908,306 @@ function renderFriends(friends) {
     if (!listEl) return;
     listEl.innerHTML = '';
 
-    friends.forEach(f => {
-        const pos = f.pos || f.position;
-
-        if (pos) {
-            const icon = L.divIcon({
-                className: 'map-avatar-wrapper',
-                html: `<img src="${escapeHtml(f.avatar)}" class="map-avatar-img" alt="${escapeHtml(f.name)}">`,
-                iconSize: [46, 46],
-                iconAnchor: [23, 23]
-            });
-            L.marker(pos, { icon }).addTo(map).bindPopup(`<b>${escapeHtml(f.name)}</b>`);
+    // Удаляем все существующие маркеры друзей, кроме myMarker
+    map.eachLayer((layer) => {
+        if (layer instanceof L.Marker && layer !== myMarker) {
+            map.removeLayer(layer);
         }
+    });
 
+    friends.forEach(f => {
+        const pos = f.pos;
+        if (!pos) return;
+
+        const icon = L.divIcon({
+            className: 'map-avatar-wrapper',
+            html: `<img src="${escapeHtml(f.avatar)}" class="map-avatar-img" alt="${escapeHtml(f.name)}">`,
+            iconSize: [46, 46],
+            iconAnchor: [23, 23]
+        });
+        const marker = L.marker(pos, { icon }).addTo(map);
+        // Клик по маркеру → только приближение
+        marker.on('click', () => {
+            map.flyTo(pos, 15, { duration: 1.2 });
+        });
+
+        // Карточка в нижней панели
         const card = document.createElement('div');
         card.className = 'friend-item';
         card.innerHTML = `<img src="${escapeHtml(f.avatar)}" alt="${escapeHtml(f.name)}"><span>${escapeHtml(f.name)}</span>`;
-        if (pos) card.onclick = () => map.flyTo(pos, 15, { duration: 1.5 });
+        card.onclick = () => openFriendProfile(f);
         listEl.appendChild(card);
     });
 }
 
-// ─── THEME ────────────────────────────────────────────────────────────────────
+// ─── FRIEND PROFILE MODAL ─────────────────────────────────────────────────────
+
+function openFriendProfile(friend) {
+    if (!friend) return;
+    currentFriendForMenu = friend; // для удаления
+
+    document.getElementById('friend-avatar').src = friend.avatar || DEFAULT_STATE.avatar;
+    document.getElementById('friend-name').textContent = friend.name || 'Без имени';
+    document.getElementById('friend-username').textContent = '@' + (friend.username || 'user');
+
+    const discordSpan = document.getElementById('friend-discord');
+    const telegramSpan = document.getElementById('friend-telegram');
+    const discordRow = document.querySelector('#friend-social-info .discord-row');
+    const telegramRow = document.querySelector('#friend-social-info .telegram-row');
+
+    const hasDiscord  = !!(friend.discord  && friend.discord  !== 'не указан');
+    const hasTelegram = !!(friend.telegram && friend.telegram !== 'не указан');
+
+    if (discordSpan)  discordSpan.textContent  = friend.discord  || '';
+    if (telegramSpan) telegramSpan.textContent = friend.telegram || '';
+
+    // Скрыть строки по отдельности
+    if (discordRow)  discordRow.style.display  = hasDiscord  ? 'flex' : 'none';
+    if (telegramRow) telegramRow.style.display = hasTelegram ? 'flex' : 'none';
+
+    // Скрыть весь блок social-info если оба пустые
+    const friendSocialBlock = document.getElementById('friend-social-info');
+    if (friendSocialBlock) {
+        friendSocialBlock.style.display = (hasDiscord || hasTelegram) ? '' : 'none';
+    }
+
+    // Закрыть меню, если открыто
+    document.getElementById('friend-menu-dropdown').style.display = 'none';
+    document.getElementById('friend-profile-modal')?.classList.add('active');
+}
+
+function closeFriendProfile() {
+    document.getElementById('friend-profile-modal')?.classList.remove('active');
+    document.getElementById('friend-menu-dropdown').style.display = 'none';
+    currentFriendForMenu = null;
+}
+
+function toggleFriendMenu() {
+    const menu = document.getElementById('friend-menu-dropdown');
+    if (menu) {
+        const isVisible = menu.style.display === 'block';
+        menu.style.display = isVisible ? 'none' : 'block';
+    }
+}
+
+async function removeCurrentFriend() {
+    if (!currentFriendForMenu) return;
+    const friendId = currentFriendForMenu.id;
+    if (!friendId) {
+        showToast('Не удалось определить ID друга');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/delet_friend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ friend_id: friendId })
+        });
+        const data = await response.json();
+        if (data.status === 'success') {
+            showToast(`Друг ${currentFriendForMenu.name} удалён`);
+            closeFriendProfile();
+            loadFriends();  // перезагрузим список и карту
+        } else {
+            showToast('Ошибка: ' + (data.message || 'Не удалось удалить друга'));
+        }
+    } catch (err) {
+        console.error('Remove friend error:', err);
+        showToast('Ошибка соединения');
+    }
+}
+
+function showSoonToast() {
+    showToast('⏳ Скоро...');
+    document.getElementById('friend-menu-dropdown').style.display = 'none';
+}
+
+// Закрытие меню при клике вне
+window.addEventListener('click', (e) => {
+    const menu = document.getElementById('friend-menu-dropdown');
+    const btn = document.querySelector('.friend-menu-btn');
+    if (menu && btn && !btn.contains(e.target) && !menu.contains(e.target)) {
+        menu.style.display = 'none';
+    }
+});
+
+// ─── MY PROFILE MENU (троеточие) ───────────────────────────────────────────
+
+function toggleMyProfileMenu() {
+    const menu = document.getElementById('my-profile-menu-dropdown');
+    if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+window.addEventListener('click', (e) => {
+    const menu = document.getElementById('my-profile-menu-dropdown');
+    const btn  = document.querySelector('.my-profile-menu-btn');
+    if (menu && btn && !btn.contains(e.target) && !menu.contains(e.target)) {
+        menu.style.display = 'none';
+    }
+});
+
+function openHtmlPreview(htmlString) {
+    const modal = document.getElementById('html-preview-modal');
+    const codeEl = document.getElementById('html-preview-code');
+    if (modal && codeEl) {
+        codeEl.textContent = htmlString;
+        modal.classList.add('active');
+    }
+}
+
+function closeHtmlPreview() {
+    document.getElementById('html-preview-modal')?.classList.remove('active');
+}
+
+function copyHtmlCode() {
+    const code = document.getElementById('html-preview-code')?.textContent;
+    if (!code) return;
+    navigator.clipboard.writeText(code).then(() => showToast('Код скопирован!'));
+}
+
+function generateMyProfileHTML() {
+    document.getElementById('my-profile-menu-dropdown').style.display = 'none';
+
+    const name     = escapeHtml(userState.name     || 'Без имени');
+    const username = escapeHtml(userState.username || 'user');
+    const discord  = userState.discord  || '';
+    const telegram = userState.telegram || '';
+    const avatar   = userState.avatar   || DEFAULT_STATE.avatar;
+    const origin   = window.location.origin;   // <-- текущий origin, чтобы API работало где угодно
+
+    const socialRows = [];
+    if (discord)  socialRows.push(`<div class="si-row"><span class="si-icon">💬</span><span>${escapeHtml(discord)}</span></div>`);
+    if (telegram) socialRows.push(`<div class="si-row"><span class="si-icon">✈️</span><span>${escapeHtml(telegram)}</span></div>`);
+    const socialBlock = socialRows.length
+        ? `<div class="social-info">${socialRows.join('')}</div>`
+        : '<div class="social-info" style="display:none"></div>';
+
+    const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${name} — Blink Profile</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0f0f0f;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 24px;
+  }
+  .profile-card {
+    background: #1c1c1e;
+    border-radius: 24px;
+    padding: 36px 28px 32px;
+    width: 100%;
+    max-width: 340px;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #30d158;
+    margin-bottom: 16px;
+  }
+  .display-name {
+    color: #fff;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    margin-bottom: 4px;
+  }
+  .display-username {
+    color: rgba(255,255,255,0.45);
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  .social-info {
+    background: rgba(255,255,255,0.04);
+    border-radius: 14px;
+    padding: 4px 0;
+    margin-top: 4px;
+  }
+  .si-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    color: rgba(255,255,255,0.8);
+    font-size: 15px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .si-row:last-child { border-bottom: none; }
+  .si-icon { font-size: 18px; }
+  .blink-badge {
+    display: inline-block;
+    margin-top: 22px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.2);
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+  <div class="profile-card">
+    <img class="avatar" src="${avatar}" alt="${name}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 96 96%22><rect width=%2296%22 height=%2296%22 fill=%22%231c1c1e%22/><text x=%2248%22 y=%2260%22 text-anchor=%22middle%22 font-size=%2240%22>👤</text></svg>'">
+    <div class="display-name">${name}</div>
+    <div class="display-username">@${username}</div>
+    ${socialBlock}
+    <span class="blink-badge">Blink Web Pro</span>
+  </div>
+  <script>
+    (function() {
+      function escapeHtml(str) {
+        if (typeof str !== 'string') return '';
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      }
+
+      async function loadProfile() {
+        try {
+          const username = '${username}';
+          const origin = '${origin}';
+          const resp = await fetch(origin + '/api/find_user/' + username);
+          const data = await resp.json();
+          if (data.status === 'success' && data.user) {
+            const u = data.user;
+            document.querySelector('.display-name').textContent = u.name || 'Без имени';
+            document.querySelector('.display-username').textContent = '@' + (u.username || 'user');
+            const avatarImg = document.querySelector('.avatar');
+            if (avatarImg && u.avatar) {
+              avatarImg.src = origin + '/api/image/' + u.avatar.split("/").slice(-1);
+              avatarImg.alt = u.name || 'Аватар';
+            }
+            const socialBlock = document.querySelector('.social-info');
+            if (socialBlock) {
+              let html = '';
+              if (u.discord) html += '<div class="si-row"><span class="si-icon">💬</span><span>' + escapeHtml(u.discord) + '</span></div>';
+              if (u.telegram) html += '<div class="si-row"><span class="si-icon">✈️</span><span>' + escapeHtml(u.telegram) + '</span></div>';
+              socialBlock.innerHTML = html;
+              socialBlock.style.display = html ? '' : 'none';
+            }
+          }
+        } catch (e) {
+          console.warn('Could not load profile:', e);
+        }
+      }
+      loadProfile();
+    })();
+  </script>
+</body>
+</html>`;
+
+    openHtmlPreview(html);
+}
 
 document.getElementById('theme-toggle')?.addEventListener('click', () => {
     map.removeLayer(layers[userState.theme]);

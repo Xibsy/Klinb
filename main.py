@@ -1,9 +1,12 @@
 import os
 import base64
+
+from data.utilities.html_generator import generate_html
 from secret import SECRET_KEY
 from data.utilities.friend_to_point import friend_to_point
 from data.utilities.requests_to_dict import requests_to_dict
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session, Response
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session, Response, make_response, \
+    send_from_directory
 from werkzeug.utils import secure_filename
 import data.db_session as db
 from data.models.user import User
@@ -375,3 +378,29 @@ def like(post_id: int):
     db_sess.commit()
     likes = db_sess.query(PostLike).filter_by(post_id=post_id).count()
     return jsonify({"status": "success", "liked": True, "likes": likes})
+
+
+@all_api.after_request
+def add_cors_headers(response) -> tuple[Response, int]:
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return response
+
+@all_api.route('/api/image/<filename>')
+def get_image(filename: str) -> Response:
+    return send_from_directory('static/uploads', filename)
+
+@all_api.route("/api/profile_html/<username>", methods=['GET'])
+def html_response(username: str) -> tuple[Response, int]:
+    db_sess = db.create_session()
+    user = db_sess.query(User).filter(User.username == username).first()
+    if not user:
+        return jsonify({'status': 'error', 'text': 'ты чет промахнулся'}), 404
+
+    html = generate_html(user, request.host_url)
+
+    response = make_response(html)
+    response.headers.set('Content-Type', 'text/json')  # Явное указание типа контента
+    return response, 200
+
+
