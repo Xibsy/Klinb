@@ -27,23 +27,23 @@
                     🔔
                     <span class="notif-badge" id="requests-badge" style="display:none">0</span>
                 </button>
- 
+
                 <button class="icon-btn" id="theme-toggle" title="Сменить тему">🌓</button>
                 <button class="icon-btn" onclick="location.href='/lenta'" title="Лента">📰</button>
                 <button class="icon-btn" onclick="logout()" title="Выйти">🚪</button>
             </div>
         </header>
- 
+
         <footer class="bottom-sheet">
             <div class="friends-scroll" id="friends-list"></div>
         </footer>
     </div>
- 
+
     <!-- Profile modal (свой) -->
     <div id="profile-modal" class="modal">
         <div class="modal-content">
             <div class="modal-handle"></div>
- 
+
             <div id="view-mode">
                 <!-- Кнопка меню (троеточие) -->
                 <div class="my-profile-menu-btn friend-menu-btn" onclick="toggleMyProfileMenu()">⋮</div>
@@ -52,9 +52,14 @@
                 </div>
 
                 <div class="profile-display">
-                    <img src="" id="display-avatar" class="large-avatar">
-                    <h2 id="display-name">Имя Фамилия</h2>
-                    <p id="display-username">@username</p>
+                <img src="" id="display-avatar" class="large-avatar">
+                <div class="name-wrapper">
+                    <img src="" id="display-aaa" class="badge-icon" style="display: none;" title="ААА ТЕРАРИСТ">
+                    <h2 id="display-name"></h2>
+                    <img src="" id="display-status" class="badge-icon" style="display: none;">
+                </div>
+                <p id="display-username">@username</p>
+                <p id="display-bio" class="profile-bio"></p>
                 </div>
                 <div class="social-info" id="my-social-info">
                     <div class="info-row discord-row"><span>💬</span> <span id="display-discord">не указан</span></div>
@@ -78,7 +83,24 @@
                     <div id="username-error" class="field-error"></div>
                 </div>
 
-                <div class="social-section">
+                <div class="badges-edit-section">
+                <label class="badge-checkbox">
+                    <input type="checkbox" id="input-aaa">
+                    <span>Показывать "ААА ТЕРАРИСТ"</span>
+                </label>
+                <select id="input-status" class="edit-input-field status-select"><option value="">Без статуса</option><option value="лайк.svg">Лайк 👍</option>
+                    <option value="HEXWAR.svg">Hex War</option>
+                    <option value="idivan.svg">I 💚 Divan</option>
+                    <option value="iklinb.svg">I 💚 Klinb</option>
+                    <option value="ixibsy.svg">Ixibsy</option>
+                    <option value="галка.svg">Верификация</option>
+                    <option value="занЯт.svg">Занят</option></select>
+            </div>
+            <div class="bio-section">
+                <label class="input-label">О себе</label>
+                <textarea id="input-bio" class="edit-input-field bio-textarea" placeholder="Расскажите о себе..." maxlength="150"></textarea>
+            </div>
+            <div class="social-section">
                     <div class="input-group">
                         <span class="icon">💬</span>
                         <input type="text" id="input-discord" placeholder="Discord ID">
@@ -102,7 +124,6 @@
         <div class="modal-content friend-modal-content">
             <div class="modal-handle"></div>
 
-            <!-- Кнопка меню (три точки) -->
             <div class="friend-menu-btn" onclick="toggleFriendMenu()">⋮</div>
             <div id="friend-menu-dropdown" class="friend-menu-dropdown" style="display: none;">
                 <button onclick="removeCurrentFriend()">Удалить друга</button>
@@ -111,8 +132,15 @@
 
             <div class="profile-display">
                 <img src="" id="friend-avatar" class="large-avatar">
-                <h2 id="friend-name">Имя</h2>
+                <div class="name-wrapper">
+                    <!-- Добавлено отображение значков для друзей -->
+                    <img src="" id="friend-aaa" class="badge-icon" style="display: none;" title="ААА ТЕРАРИСТ">
+                    <h2 id="friend-name"></h2>
+                    <img src="" id="friend-status" class="badge-icon" style="display: none;">
+                </div>
                 <p id="friend-username">@username</p>
+                <!-- Добавлено отображение описания для друзей -->
+                <p id="friend-bio" class="profile-bio"></p>
             </div>
             <div class="social-info" id="friend-social-info">
                 <div class="info-row discord-row"><span>💬</span> <span id="friend-discord">не указан</span></div>

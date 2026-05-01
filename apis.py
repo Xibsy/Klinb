@@ -204,12 +204,18 @@ def update_profile() -> tuple[Response, int]:
     new_username = data.get('username')
     new_discord = data.get('discord')
     new_telegram = data.get('telegram')
+    new_status = data.get('status')
+    new_aaa = data.get('show_aaa')
+    new_bio = data.get('bio')
     db_sess = db.create_session()
     user = db_sess.get(User, session['user_id'])
     user.name = new_name
     user.username = new_username
     user.discord = new_discord
     user.telegram = new_telegram
+    user.status = new_status
+    user.show_aaa = new_aaa
+    user.bio = new_bio
     db_sess.commit()
     return jsonify({"status": 'success', 'message': 'Успех'}), 200
 
