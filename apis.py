@@ -326,6 +326,7 @@ def get_photos_by_hashtag(tag_name: str) -> tuple[Response, int]:
     if not api_key or api_key != SECRET_KEY:
         return jsonify({"error": "Bruh, тебе нужен ключ, добудь его в бою"}), 401
 
+    limit = request.args.get('limit')
     db_sess = db.create_session()
     hashtag = db_sess.query(Hashtag).filter(Hashtag.name == tag_name.lower()).first()
     posts_with_photos = []
@@ -341,6 +342,9 @@ def get_photos_by_hashtag(tag_name: str) -> tuple[Response, int]:
         posts_with_photos.append(
             {"img": image_byte, "post_content": post.content, "author_username": post.user.username,
              "author_name": post.user.name})
+    if limit is not None:
+        limit = int(limit)
+        posts_with_photos = posts_with_photos[:limit]
 
     db_sess.close()
     return jsonify({"hashtag": tag_name, "count": len(posts_with_photos), "photos": posts_with_photos}), 200
