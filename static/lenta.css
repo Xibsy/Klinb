@@ -324,3 +324,19 @@ body {
     50%  { transform: scale(1.3); }
     100% { transform: scale(1); }
 }
+.delete-post-btn {
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: #ff3b30;
+    opacity: 0.6;
+    transition: opacity var(--transition), transform var(--transition);
+    padding: 4px;
+}
+.delete-post-btn:hover {
+    opacity: 1;
+}
+.delete-post-btn:active {
+    transform: scale(0.9);
+}

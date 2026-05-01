@@ -424,3 +424,19 @@ def add_cors_headers(response) -> tuple[Response, int]:
     return response
 
 
+@api.route('/api/posts/<int:post_id>', methods=['DELETE'])
+def delete_post(post_id: int) -> tuple[Response, int]:
+    if 'user_id' not in session:
+        return jsonify({"status": "error", "message": "Сначала авторизуйтесь"}), 401
+
+    db_sess = db.create_session()
+    post = db_sess.query(Post).filter(Post.id == post_id).first()
+
+    if post.user_id != session['user_id']:
+        return jsonify({"status": "error", "message": "Нельзя удалить чужой пост"}), 403
+
+    db_sess.query(PostLike).filter(PostLike.post_id == post_id).delete()
+    db_sess.delete(post)
+    db_sess.commit()
+
+    return jsonify({"status": "success", "message": "Пост удалён"}), 200

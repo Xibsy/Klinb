@@ -28,24 +28,21 @@
         {% endif %}
 
         {% for post in posts %}
-        <article class="post-card" style="animation-delay: {{ loop.index0 * 0.05 }}s">
+        <article class="post-card" data-post-id="{{ post.id }}" style="animation-delay: {{ loop.index0 * 0.05 }}s">
             <div class="post-header">
-
-                <!--
-                    Плейсхолдер аватарки.
-                    data-username  — логин пользователя (для инициалов и цвета)
-                    data-avatar-url — URL аватарки, если она есть у пользователя.
-                    JS в lenta.js заменит этот div на <img> или цветной кружок с инициалами.
-                -->
                 <div class="post-avatar-placeholder"
                      data-username="{{ post.user.username if post.user else 'unknown' }}"
-                     data-avatar-url="{{ url_for('static', filename='uploads/' + post.user.avatar.split('/')[3]) if post.user and post.user.avatar else '' }}">
+                     data-avatar-url="{% if post.user and post.user.avatar %}{{ url_for('static', filename='uploads/' + post.user.avatar.split('/')[-1]) }}{% endif %}">
                 </div>
 
                 <div class="post-meta">
                     <span class="post-username">@{{ post.user.username if post.user else "unknown" }}</span>
                     <span class="post-time">{{ post.created_at.strftime('%d.%m.%Y %H:%M') if post.created_at else '' }}</span>
                 </div>
+
+                {% if current_user_id == post.user_id %}
+                <button class="delete-post-btn" data-post-id="{{ post.id }}" title="Удалить пост">  Удалить</button>
+                {% endif %}
             </div>
 
             {% if post.content %}
@@ -67,9 +64,9 @@
             {% endif %}
 
             <button class="like-btn" data-post-id="{{ post.id }}">
-    <span class="like-icon">❤️</span>
-    <span class="like-count">{{ post.likes.count() if post.likes else 0 }}</span>
-</button>
+                <span class="like-icon">❤️</span>
+                <span class="like-count">{{ post.likes.count() if post.likes else 0 }}</span>
+            </button>
         </article>
         {% else %}
         <div class="empty-state">
