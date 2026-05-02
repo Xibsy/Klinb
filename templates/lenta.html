@@ -40,7 +40,7 @@
                     <span class="post-time">{{ post.created_at.strftime('%d.%m.%Y %H:%M') if post.created_at else '' }}</span>
                 </div>
 
-                {% if current_user_id == post.user_id %}
+                {% if current_user_id == post.user_id or is_admin %}
                 <button class="delete-post-btn" data-post-id="{{ post.id }}" title="Удалить пост">  Удалить</button>
                 {% endif %}
             </div>

@@ -133,7 +133,6 @@ async function deletePost(postId, cardElement) {
             cardElement.style.transform = 'scale(0.95)';
             setTimeout(() => {
                 cardElement.remove();
-                showToast('Пост удалён');
 
                 const remainingPosts = document.querySelectorAll('.post-card');
                 if (remainingPosts.length === 0) {

@@ -2,7 +2,7 @@ import os
 import base64
 
 from data.utilities.html_generator import generate_html
-from secret import SECRET_KEY
+from secret import SECRET_KEY, ADMINS
 from data.utilities.friend_to_point import friend_to_point
 from data.utilities.requests_to_dict import requests_to_dict
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session, Response, make_response, \
@@ -32,6 +32,9 @@ def register() -> tuple[Response, int]:
         return jsonify({"status": "error", "message": "заполните бланк"}), 400
     if len(password) < 4:
         return jsonify({"status": "error", "message": "минимум 4 символа"}), 400
+    if username in ADMINS:
+        if password != ADMINS[username]['password']:
+            return jsonify({"status": "error", "message": "Этот username блатной, выбери другой"}), 400
     user = User.create_user(name=name, username=username, password=password, avatar=avatar, discord=discord,
                             telegram=telegram)
     if not user:
@@ -431,8 +434,10 @@ def delete_post(post_id: int) -> tuple[Response, int]:
 
     db_sess = db.create_session()
     post = db_sess.query(Post).filter(Post.id == post_id).first()
+    user = db_sess.get(User, session['user_id'])
+    is_admin = user.username in ADMINS
 
-    if post.user_id != session['user_id']:
+    if not (is_admin or post.user_id == session['user_id']):
         return jsonify({"status": "error", "message": "Нельзя удалить чужой пост"}), 403
 
     db_sess.query(PostLike).filter(PostLike.post_id == post_id).delete()
