@@ -340,9 +340,10 @@ function updateUI() {
         const bioText = userState.bio || "";
         if (bioText.trim()) {
             displayBio.className = 'profile-bio-card';
-            displayBio.textContent = bioText;
+            displayBio.innerHTML = `<div class="bio-icon">✏️</div><span class="bio-text">${escapeHtml(bioText)}</span>`;
         } else {
             displayBio.className = 'profile-bio';
+            displayBio.innerHTML = '';
             displayBio.textContent = '';
         }
     }
@@ -1029,15 +1030,15 @@ function openFriendProfile(friend) {
     if (!friend) return;
     currentFriendForMenu = friend;
 
-    // Bio — стилизованная карточка
+    // Bio — стилизованная карточка в стиле соцсетей
     const fBio = document.getElementById('friend-bio');
     if (fBio) {
         if (friend.bio && friend.bio.trim()) {
             fBio.className = 'profile-bio-card';
-            fBio.textContent = friend.bio.trim();
+            fBio.innerHTML = `<div class="bio-icon">✏️</div><span class="bio-text">${escapeHtml(friend.bio.trim())}</span>`;
         } else {
             fBio.className = 'profile-bio';
-            fBio.textContent = '';
+            fBio.innerHTML = '';
         }
     }
 
@@ -1560,7 +1561,7 @@ async function saveAdminFriendEdit() {
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Сохранение...'; }
 
     const payload = {
-        target_id: adminEditingFriend.id,
+        target_username: adminEditingFriend.username,
         name, username, discord, telegram, status, show_aaa, bio
     };
 
