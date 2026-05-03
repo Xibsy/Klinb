@@ -14,6 +14,8 @@ from data.models.post import Post
 from data.models.hashtag import Hashtag
 from data.models.post_like import PostLike
 from data.utilities.compress_photo import compress_photo
+from data.models.broadcast_message import Message
+
 
 api = Blueprint('apis', __name__)
 
@@ -43,7 +45,7 @@ def register() -> tuple[Response, int]:
     session['user_id'] = user.id
     session['username'] = user.username
     return jsonify(
-        {"status": "success", "message": f"Добро пожаловать на сайт klink, {name}", "user": user.to_dict()}), 200
+        {"status": "success", "message": f"Добро пожаловать на сайт klinb, {name}", "user": user.to_dict()}), 200
 
 
 @api.route('/api/login', methods=['POST'])
@@ -72,6 +74,7 @@ def current_user() -> tuple[Response, int]:
     if 'user_id' in session:
         db_sess = db.create_session()
         user = db_sess.get(User, session['user_id'])
+        db_sess.close()
         if user:
             return jsonify({"status": "success", "user": user.to_dict()}), 200
     return jsonify({"status": "error", "message": "еще не зашел :("}), 401
@@ -99,6 +102,7 @@ def new_post() -> Response | str:
         db_sess.add(new_post)
         new_post.add_hashtags(session=db_sess)
         db_sess.commit()
+        db_sess.close()
         return redirect(url_for('pages.lenta'))
     return render_template('new_post.html')
 
@@ -114,6 +118,7 @@ def get_posts() -> tuple[Response, int]:
         posts = db_sess.query(Post).order_by(Post.id.desc()).all()
 
     current_user_id = session.get('user_id')
+    db_sess.close()
     return jsonify(
         {"status": "success", "posts": [post.to_dict(current_user_id=current_user_id) for post in posts]}), 200
 
@@ -133,6 +138,7 @@ def create_post_api() -> tuple[Response, int]:
     db_sess.add(new_post)
     new_post.add_hashtags(session=db_sess)
     db_sess.commit()
+    db_sess.close()
 
     return jsonify({"status": "success", "post": new_post.to_dict()}), 201
 
@@ -159,10 +165,13 @@ def add_friend() -> tuple[Response, int]:
 
     if friend_name and friend_name != user.username and not in_outgoing:
         db_sess.commit()
+        db_sess.close()
         return jsonify({"status": "success", "message": f"{friend_name} отправлен запрос в друзья"}), 200
     elif friend_name and friend_name == user.username:
+        db_sess.close()
         return jsonify({"status": "error", "message": "Зачем себя добавлять?"}), 400
     elif friend_name and friend_name != user.username and in_outgoing:
+        db_sess.close()
         return jsonify({'status': 'error', 'message': 'Запрос уже отправлен!'}), 200
     return jsonify({"status": "error", "message": "напиши сначала кого добавить"}), 400
 
@@ -171,6 +180,7 @@ def add_friend() -> tuple[Response, int]:
 def find_user(username: str) -> tuple[Response, int]:
     db_sess = db.create_session()
     user = db_sess.query(User).filter(User.username == username).first()
+    db_sess.close()
     if not user:
         return jsonify({"status": "error", "message": "Пользователь не найден"}), 404
     return jsonify({"status": "success", "user": user.to_dict()}), 200
@@ -195,6 +205,7 @@ def upload_avatar() -> tuple[Response, int]:
     avatar_url = '/static/uploads/' + filename
     user.avatar = avatar_url
     db_sess.commit()
+    db_sess.close()
     return jsonify({"status": "success", "message": "Успех", "avatar_url": avatar_url}), 200
 
 
@@ -210,8 +221,12 @@ def update_profile() -> tuple[Response, int]:
     new_status = data.get('status')
     new_aaa = data.get('show_aaa')
     new_bio = data.get('bio')
+    target_id = data.get('target_id')
     db_sess = db.create_session()
-    user = db_sess.get(User, session['user_id'])
+    if target_id is not None:
+        user = db_sess.get(User, target_id)
+    else:
+        user = db_sess.get(User, session['user_id'])
     user.name = new_name
     user.username = new_username
     user.discord = new_discord
@@ -220,6 +235,7 @@ def update_profile() -> tuple[Response, int]:
     user.show_aaa = new_aaa
     user.bio = new_bio
     db_sess.commit()
+    db_sess.close()
     return jsonify({"status": 'success', 'message': 'Успех'}), 200
 
 
@@ -230,6 +246,7 @@ def update_location() -> tuple[Response, int]:
     user = db_sess.get(User, session['user_id'])
     user.geo_position = f"{position.get('lat')}, {position.get('lng')}"
     db_sess.commit()
+    db_sess.close()
     return jsonify({"status": 'success', 'message': 'Успех'}), 200
 
 
@@ -251,7 +268,7 @@ def friend_requests() -> tuple[Response, int]:
                              for friend_id in user.outgoing_requests.split(',')]
     except AttributeError:
         outgoing_requests = []
-
+    db_sess.close()
     return jsonify({'incoming': incoming_requests, 'outgoing': outgoing_requests,
                     'status': 'success'}), 200
 
@@ -283,6 +300,7 @@ def friend_request_respond() -> tuple[Response, int]:
             if friend.friends is not None else f'{user.id}'
 
         db_sess.commit()
+        db_sess.close()
         return jsonify({'status': 'success', 'text': 'Вы теперь друзья'}), 200
     elif action == 'decline':
         new_incoming = user.incoming_requests.split(',')
@@ -294,6 +312,7 @@ def friend_request_respond() -> tuple[Response, int]:
         friend.outgoing_requests = ','.join(new_outgoing) if new_outgoing is not None else None
 
         db_sess.commit()
+        db_sess.close()
         return jsonify({'status': 'success', 'text': 'Вы отклонили запрос'}), 200
     elif action == 'cancel':
         new_outgoing = user.outgoing_requests.split(',')
@@ -304,8 +323,9 @@ def friend_request_respond() -> tuple[Response, int]:
         new_incoming = new_incoming.remove(str(user.id))
         friend.incoming_requests = ','.join(new_incoming) if new_incoming is not None else None
         db_sess.commit()
+        db_sess.close()
         return jsonify({'status': 'success', 'text': 'Вы отклонили запрос'}), 200
-
+    db_sess.close()
     return jsonify({'status': 'error', 'text': 'ты чет не то мне дал брух'}), 400
 
 
@@ -319,6 +339,7 @@ def get_friends() -> tuple[Response, int]:
     friends = [friend_to_point(db_sess.query(User).filter(User.id == int(friend)).first())
                for friend in user.friends.split(',')
                if friend_to_point(db_sess.query(User).filter(User.id == int(friend)).first()) is not None]
+    db_sess.close()
 
     return jsonify({'status': 'success', 'friends': friends}), 200
 
@@ -365,11 +386,13 @@ def like(post_id: int):
         db_sess.delete(real)
         db_sess.commit()
         likes = db_sess.query(PostLike).filter_by(post_id=post_id).count()
+        db_sess.close()
         return jsonify({"status": "success", "liked": False, "likes": likes})
 
     db_sess.add(PostLike(user_id=user_id, post_id=post_id))
     db_sess.commit()
     likes = db_sess.query(PostLike).filter_by(post_id=post_id).count()
+    db_sess.close()
     return jsonify({"status": "success", "liked": True, "likes": likes})
 
 
@@ -383,12 +406,14 @@ def html_response(username: str) -> tuple[Response, int]:
     db_sess = db.create_session()
     user = db_sess.query(User).filter(User.username == username).first()
     if not user:
+        db_sess.close()
         return jsonify({'status': 'error', 'text': 'ты чет промахнулся'}), 404
 
     html = generate_html(user, request.host_url)
 
     response = make_response(html)
-    response.headers.set('Content-Type', 'text/json')  # Явное указание типа контента
+    response.headers.set('Content-Type', 'text/json')
+    db_sess.close()
     return response, 200
 
 
@@ -400,11 +425,13 @@ def delete_user() -> tuple[Response, int]:
     db_sess = db.create_session()
     user = db_sess.get(User, session['user_id'])
     if not user:
+        db_sess.close()
         return jsonify({'status': 'error', 'message': 'ты точно залогинился?'}), 401
 
     friend = db_sess.query(User).filter(User.id == id).first()
 
     if not friend:
+        db_sess.close()
         return jsonify({'status': 'error', 'message': 'ты чет не попал'}), 404
 
     new_user_friends = user.friends.split(',')
@@ -416,6 +443,7 @@ def delete_user() -> tuple[Response, int]:
     friend.friends = ','.join(new_friend_friends) if new_friend_friends else None
 
     db_sess.commit()
+    db_sess.close()
 
     return jsonify({'status': 'success', 'message': f'Успех - {friend.name} удален из друзей'}), 200
 
@@ -438,10 +466,32 @@ def delete_post(post_id: int) -> tuple[Response, int]:
     is_admin = user.username in ADMINS
 
     if not (is_admin or post.user_id == session['user_id']):
+        db_sess.close()
         return jsonify({"status": "error", "message": "Нельзя удалить чужой пост"}), 403
 
     db_sess.query(PostLike).filter(PostLike.post_id == post_id).delete()
     db_sess.delete(post)
     db_sess.commit()
-
+    db_sess.close()
     return jsonify({"status": "success", "message": "Пост удалён"}), 200
+
+
+@api.route('/api/admins', methods=['GET'])
+def get_admins() -> tuple[Response, int]:
+    return jsonify({'admins': [key for key in ADMINS]}), 200
+
+@api.route('/api/broadcasts/latest', methods=['GET'])
+def get_latest_broadcasts() -> tuple[Response, int]:
+    db_sess = db.create_session()
+    message = db_sess.query(Message).order_by(Message.id.desc()).first()
+    db_sess.close()
+    return jsonify({'status': 'success', 'broadcast': {'id': message.id, 'message': message.content}}), 200
+
+
+@api.route('/api/broadcasts', methods=['POST'])
+def create_broadcast() -> tuple[Response, int]:
+    data = request.get_json()
+    message = data['message']
+    Message.create(message)
+    return jsonify({'status': 'success'}), 200
+

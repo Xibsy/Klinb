@@ -27,9 +27,13 @@ try {
 }
 
 let isAuthenticated = false;
+let isAdmin = false;
 let currentRequestsTab = 'incoming';
 let requestsPollingInterval = null;
+let broadcastPollingInterval = null;
+let lastBroadcastId = 0;
 let currentFriendForMenu = null;   // храним друга, для которого открыто меню
+let adminEditingFriend = null;     // друг, профиль которого редактирует админ
 
 // ─── MAP ──────────────────────────────────────────────────────────────────────
 
@@ -149,9 +153,11 @@ async function checkAuth() {
             isAuthenticated = true;
             userState = { ...userState, ...data.user };
             saveStateLocally();
+            await checkAdminStatus();
             updateUI();
             loadFriends();
             startRequestsPolling();
+            startBroadcastPolling();
         } else {
             showAuthModal();
         }
@@ -251,10 +257,12 @@ async function loginUser() {
             userState = { ...userState, ...data.user };
             saveStateLocally();
             isAuthenticated = true;
+            await checkAdminStatus();
             updateUI();
             closeAuthModal();
             loadFriends();
             startRequestsPolling();
+            startBroadcastPolling();
             showToast(`С возвращением, ${userState.name || username}!`);
         } else {
             if (errorEl) errorEl.textContent = data.message || 'Ошибка входа';
@@ -298,10 +306,12 @@ async function registerUser() {
             userState = { ...userState, ...data.user };
             saveStateLocally();
             isAuthenticated = true;
+            await checkAdminStatus();
             updateUI();
             closeAuthModal();
             loadFriends();
             startRequestsPolling();
+            startBroadcastPolling();
             showToast('Добро пожаловать!');
         } else {
             showToast('Ошибка: ' + data.message);
@@ -326,7 +336,16 @@ function validateUsername(username) {
 
 function updateUI() {
     const displayBio = document.getElementById('display-bio');
-    if(displayBio) displayBio.textContent = userState.bio || "";
+    if (displayBio) {
+        const bioText = userState.bio || "";
+        if (bioText.trim()) {
+            displayBio.className = 'profile-bio-card';
+            displayBio.textContent = bioText;
+        } else {
+            displayBio.className = 'profile-bio';
+            displayBio.textContent = '';
+        }
+    }
 
     const inBio = document.getElementById('input-bio');
     if(inBio) inBio.value = userState.bio || "";
@@ -351,6 +370,12 @@ function updateUI() {
     if(inAaa) inAaa.checked = !!userState.show_aaa;
     if(inStatus) inStatus.value = userState.status || "";
 
+    // AAA badge только для админов
+    const badgeCheckboxRow = document.querySelector('.badge-checkbox');
+    if (badgeCheckboxRow) {
+        badgeCheckboxRow.style.display = isAdmin ? 'flex' : 'none';
+    }
+
     document.body.setAttribute('data-theme', userState.theme);
 
     const navAvatar   = document.getElementById('nav-avatar');
@@ -370,15 +395,39 @@ function updateUI() {
     if (displayDiscord)  displayDiscord.textContent  = userState.discord  || 'не указан';
     if (displayTelegram) displayTelegram.textContent = userState.telegram || 'не указан';
 
-    // Скрывать строки соцсетей, если они пустые (в своём профиле)
+    // Стилизованные ссылки соцсетей в своём профиле
     const mySocialInfo = document.getElementById('my-social-info');
     if (mySocialInfo) {
-        const discordRow  = mySocialInfo.querySelector('.discord-row');
-        const telegramRow = mySocialInfo.querySelector('.telegram-row');
         const hasD = !!(userState.discord  && userState.discord  !== 'не указан');
         const hasT = !!(userState.telegram && userState.telegram !== 'не указан');
-        if (discordRow)  discordRow.style.display  = hasD ? 'flex' : 'none';
-        if (telegramRow) telegramRow.style.display = hasT ? 'flex' : 'none';
+        mySocialInfo.innerHTML = '';
+        if (hasD) {
+            const row = document.createElement('div');
+            row.className = 'social-link-row';
+            row.title = 'Скопировать Discord ID';
+            row.innerHTML = `
+                <div class="social-link-icon dc-icon">💬</div>
+                <span class="social-link-text">${escapeHtml(userState.discord)}</span>
+                <span class="social-link-arrow">📋</span>
+            `;
+            row.onclick = () => {
+                navigator.clipboard.writeText(userState.discord).then(() => showToast('Discord ID скопирован!'));
+            };
+            mySocialInfo.appendChild(row);
+        }
+        if (hasT) {
+            const tgHandle = userState.telegram.replace(/^@/, '');
+            const row = document.createElement('div');
+            row.className = 'social-link-row';
+            row.title = 'Открыть в Telegram';
+            row.innerHTML = `
+                <div class="social-link-icon tg-icon">✈️</div>
+                <span class="social-link-text">@${escapeHtml(tgHandle)}</span>
+                <span class="social-link-arrow">↗</span>
+            `;
+            row.onclick = () => window.open(`https://t.me/${encodeURIComponent(tgHandle)}`, '_blank');
+            mySocialInfo.appendChild(row);
+        }
         mySocialInfo.style.display = (hasD || hasT) ? '' : 'none';
     }
 
@@ -417,7 +466,8 @@ function closeProfile() {
 async function saveProfile() {
     const status = document.getElementById('input-status').value;
     const bio = document.getElementById("input-bio").value;
-    const show_aaa = document.getElementById('input-aaa').checked;
+    // ААА ТЕРАРИСТ только для администраторов
+    const show_aaa = isAdmin ? document.getElementById('input-aaa').checked : false;
 
     if (!isAuthenticated) { showAuthModal(); return; }
 
@@ -976,17 +1026,29 @@ function renderFriends(friends) {
 // ─── FRIEND PROFILE MODAL ─────────────────────────────────────────────────────
 
 function openFriendProfile(friend) {
+    if (!friend) return;
+    currentFriendForMenu = friend;
+
+    // Bio — стилизованная карточка
     const fBio = document.getElementById('friend-bio');
-    if(fBio) fBio.textContent = friend.bio || "";
+    if (fBio) {
+        if (friend.bio && friend.bio.trim()) {
+            fBio.className = 'profile-bio-card';
+            fBio.textContent = friend.bio.trim();
+        } else {
+            fBio.className = 'profile-bio';
+            fBio.textContent = '';
+        }
+    }
 
     const fAaa = document.getElementById('friend-aaa');
     const fStatus = document.getElementById('friend-status');
-    if(fAaa) {
+    if (fAaa) {
         fAaa.src = "/static/uploads/ААА ТЕРАРИСТ.svg";
         fAaa.style.display = friend.show_aaa ? 'block' : 'none';
     }
-    if(fStatus) {
-        if(friend.status) {
+    if (fStatus) {
+        if (friend.status) {
             fStatus.src = "/static/uploads/" + friend.status;
             fStatus.style.display = 'block';
         } else {
@@ -994,33 +1056,50 @@ function openFriendProfile(friend) {
         }
     }
 
-    if (!friend) return;
-    currentFriendForMenu = friend; // для удаления
-
     document.getElementById('friend-avatar').src = friend.avatar || DEFAULT_STATE.avatar;
     document.getElementById('friend-name').textContent = friend.name || 'Без имени';
     document.getElementById('friend-username').textContent = '@' + (friend.username || 'user');
 
-    const discordSpan = document.getElementById('friend-discord');
-    const telegramSpan = document.getElementById('friend-telegram');
-    const discordRow = document.querySelector('#friend-social-info .discord-row');
-    const telegramRow = document.querySelector('#friend-social-info .telegram-row');
-
+    // Стилизованные ссылки на соцсети
+    const friendSocialBlock = document.getElementById('friend-social-info');
     const hasDiscord  = !!(friend.discord  && friend.discord  !== 'не указан');
     const hasTelegram = !!(friend.telegram && friend.telegram !== 'не указан');
 
-    if (discordSpan)  discordSpan.textContent  = friend.discord  || '';
-    if (telegramSpan) telegramSpan.textContent = friend.telegram || '';
-
-    // Скрыть строки по отдельности
-    if (discordRow)  discordRow.style.display  = hasDiscord  ? 'flex' : 'none';
-    if (telegramRow) telegramRow.style.display = hasTelegram ? 'flex' : 'none';
-
-    // Скрыть весь блок social-info если оба пустые
-    const friendSocialBlock = document.getElementById('friend-social-info');
     if (friendSocialBlock) {
+        friendSocialBlock.innerHTML = '';
+        if (hasDiscord) {
+            const row = document.createElement('div');
+            row.className = 'social-link-row';
+            row.title = 'Скопировать Discord ID';
+            row.innerHTML = `
+                <div class="social-link-icon dc-icon">💬</div>
+                <span class="social-link-text">${escapeHtml(friend.discord)}</span>
+                <span class="social-link-arrow">📋</span>
+            `;
+            row.onclick = () => {
+                navigator.clipboard.writeText(friend.discord).then(() => showToast('Discord ID скопирован!'));
+            };
+            friendSocialBlock.appendChild(row);
+        }
+        if (hasTelegram) {
+            const tgHandle = friend.telegram.replace(/^@/, '');
+            const row = document.createElement('div');
+            row.className = 'social-link-row';
+            row.title = 'Открыть в Telegram';
+            row.innerHTML = `
+                <div class="social-link-icon tg-icon">✈️</div>
+                <span class="social-link-text">@${escapeHtml(tgHandle)}</span>
+                <span class="social-link-arrow">↗</span>
+            `;
+            row.onclick = () => window.open(`https://t.me/${encodeURIComponent(tgHandle)}`, '_blank');
+            friendSocialBlock.appendChild(row);
+        }
         friendSocialBlock.style.display = (hasDiscord || hasTelegram) ? '' : 'none';
     }
+
+    // Показываем кнопку редактирования для администраторов
+    const adminEditBtn = document.getElementById('admin-edit-friend-btn');
+    if (adminEditBtn) adminEditBtn.style.display = isAdmin ? 'block' : 'none';
 
     // Закрыть меню, если открыто
     document.getElementById('friend-menu-dropdown').style.display = 'none';
@@ -1317,10 +1396,202 @@ document.getElementById('theme-toggle')?.addEventListener('click', () => {
     saveStateLocally();
 });
 
+// ─── ADMIN ────────────────────────────────────────────────────────────────────
+
+async function checkAdminStatus() {
+    try {
+        const res = await fetch('/api/admins');
+        const data = await res.json();
+        if (data.admins && Array.isArray(data.admins)) {
+            isAdmin = data.admins.includes(userState.username);
+        } else {
+            isAdmin = false;
+        }
+    } catch (e) {
+        console.warn('Could not fetch admin list:', e);
+        isAdmin = false;
+    }
+    updateAdminUI();
+}
+
+function updateAdminUI() {
+    // Показываем кнопку рассылки в меню своего профиля
+    const broadcastBtn = document.getElementById('admin-broadcast-menu-btn');
+    if (broadcastBtn) broadcastBtn.style.display = isAdmin ? 'block' : 'none';
+
+    // AAA checkbox видим только для админов
+    const badgeRow = document.querySelector('.badge-checkbox');
+    if (badgeRow) badgeRow.style.display = isAdmin ? 'flex' : 'none';
+}
+
+// ─── ADMIN BROADCAST ──────────────────────────────────────────────────────────
+
+function openBroadcastModal() {
+    document.getElementById('my-profile-menu-dropdown').style.display = 'none';
+    const input = document.getElementById('broadcast-input');
+    if (input) input.value = '';
+    document.getElementById('broadcast-modal')?.classList.add('active');
+}
+
+function closeBroadcastModal() {
+    document.getElementById('broadcast-modal')?.classList.remove('active');
+}
+
+async function sendBroadcast() {
+    const message = document.getElementById('broadcast-input')?.value.trim();
+    if (!message) { showToast('Введите текст сообщения'); return; }
+
+    const btn = document.querySelector('#broadcast-modal .admin-action-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Отправка...'; }
+
+    try {
+        const res = await fetch('/api/broadcasts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            showToast('✅ Сообщение отправлено всем!');
+            closeBroadcastModal();
+            // Обновляем lastBroadcastId чтобы сами себе не показывать
+            if (data.id) lastBroadcastId = data.id;
+        } else {
+            showToast('Ошибка: ' + (data.message || 'не удалось отправить'));
+        }
+    } catch (e) {
+        showToast('Ошибка соединения');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '📤 Отправить всем'; }
+    }
+}
+
+function startBroadcastPolling() {
+    pollBroadcasts();
+    if (broadcastPollingInterval) clearInterval(broadcastPollingInterval);
+    broadcastPollingInterval = setInterval(pollBroadcasts, 8_000);
+}
+
+async function pollBroadcasts() {
+    if (!isAuthenticated) return;
+    try {
+        const res = await fetch(`/api/broadcasts/latest`);
+        const data = await res.json();
+        if (data.status === 'success' && data.broadcast) {
+            const b = data.broadcast;
+            if (b.id && b.id > lastBroadcastId) {
+                lastBroadcastId = b.id;
+                showBroadcastNotification(b.message);
+            }
+        }
+    } catch (e) {
+        // тихо
+    }
+}
+
+function showBroadcastNotification(message) {
+    const banner = document.getElementById('broadcast-banner');
+    const msgEl  = document.getElementById('broadcast-message-text');
+    if (!banner || !msgEl) return;
+
+    msgEl.textContent = message;
+    banner.classList.add('visible');
+
+    // Автоскрытие через 8 секунд
+    if (banner._autoHideTimer) clearTimeout(banner._autoHideTimer);
+    banner._autoHideTimer = setTimeout(dismissBroadcast, 8000);
+}
+
+function dismissBroadcast() {
+    const banner = document.getElementById('broadcast-banner');
+    if (banner) {
+        banner.classList.remove('visible');
+        if (banner._autoHideTimer) clearTimeout(banner._autoHideTimer);
+    }
+}
+
+// ─── ADMIN EDIT FRIEND PROFILE ────────────────────────────────────────────────
+
+function openAdminEditFriendModal() {
+    if (!isAdmin || !currentFriendForMenu) return;
+
+    document.getElementById('friend-menu-dropdown').style.display = 'none';
+
+    const f = currentFriendForMenu;
+    adminEditingFriend = f;
+
+    const subtitle = document.getElementById('admin-edit-subtitle');
+    if (subtitle) subtitle.textContent = `Редактирование: @${f.username}`;
+
+    document.getElementById('admin-edit-name').value     = f.name     || '';
+    document.getElementById('admin-edit-username').value = f.username || '';
+    document.getElementById('admin-edit-bio').value      = f.bio      || '';
+    document.getElementById('admin-edit-discord').value  = f.discord  || '';
+    document.getElementById('admin-edit-telegram').value = f.telegram || '';
+    document.getElementById('admin-edit-aaa').checked    = !!f.show_aaa;
+    document.getElementById('admin-edit-status').value   = f.status   || '';
+    document.getElementById('admin-edit-username-error').textContent = '';
+
+    document.getElementById('admin-edit-friend-modal')?.classList.add('active');
+}
+
+function closeAdminEditFriendModal() {
+    document.getElementById('admin-edit-friend-modal')?.classList.remove('active');
+    adminEditingFriend = null;
+}
+
+async function saveAdminFriendEdit() {
+    if (!isAdmin || !adminEditingFriend) return;
+
+    const name     = document.getElementById('admin-edit-name').value.trim()     || 'Без имени';
+    const username = document.getElementById('admin-edit-username').value.trim().replace('@', '');
+    const bio      = document.getElementById('admin-edit-bio').value.trim();
+    const discord  = document.getElementById('admin-edit-discord').value.trim();
+    const telegram = document.getElementById('admin-edit-telegram').value.trim();
+    const show_aaa = document.getElementById('admin-edit-aaa').checked;
+    const status   = document.getElementById('admin-edit-status').value;
+    const errorEl  = document.getElementById('admin-edit-username-error');
+
+    const usernameErr = validateUsername(username);
+    if (usernameErr) { if (errorEl) errorEl.textContent = usernameErr; return; }
+    if (errorEl) errorEl.textContent = '';
+
+    const saveBtn = document.getElementById('admin-edit-save-btn');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Сохранение...'; }
+
+    const payload = {
+        target_id: adminEditingFriend.id,
+        name, username, discord, telegram, status, show_aaa, bio
+    };
+
+    try {
+        const res = await fetch('/api/update_profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            showToast(`Профиль @${adminEditingFriend.username} обновлён`);
+            closeAdminEditFriendModal();
+            closeFriendProfile();
+            loadFriends();
+        } else {
+            const data = await res.json().catch(() => ({}));
+            showToast('Ошибка: ' + (data.message || 'попробуйте снова'));
+        }
+    } catch (e) {
+        showToast('Ошибка соединения');
+    } finally {
+        if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Сохранить'; }
+    }
+}
+
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────
 
 function logout() {
     if (requestsPollingInterval) clearInterval(requestsPollingInterval);
+    if (broadcastPollingInterval) clearInterval(broadcastPollingInterval);
+    isAdmin = false;
     fetch('/api/logout', { method: 'POST' })
         .finally(() => {
             localStorage.removeItem('blink_user');

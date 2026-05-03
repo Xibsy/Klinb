@@ -38,6 +38,7 @@ class User(SqlAlchemyBase):
         user.set_password(password)
         session.add(user)
         session.commit()
+        session.close()
         return user
 
     @classmethod

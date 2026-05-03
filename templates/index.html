@@ -9,9 +9,21 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body data-theme="dark">
- 
+
+    <!-- Admin broadcast notification banner (top) -->
+    <div id="broadcast-banner" class="broadcast-banner">
+        <div class="broadcast-banner-inner">
+            <span class="broadcast-icon">📢</span>
+            <div class="broadcast-content">
+                <div class="broadcast-title">Сообщение от администратора</div>
+                <div class="broadcast-message" id="broadcast-message-text"></div>
+            </div>
+            <button class="broadcast-close" onclick="dismissBroadcast()">✕</button>
+        </div>
+    </div>
+
     <div id="map"></div>
- 
+
     <div class="ui-overlay">
         <header class="top-bar">
             <div class="profile-btn" onclick="openProfile()">
@@ -21,7 +33,7 @@
             <div class="top-actions">
                 <button class="icon-btn" onclick="flyToMyLocation()" title="Моя позиция">📍</button>
                 <button class="icon-btn" onclick="openAddFriendModal()" title="Добавить друга">+</button>
- 
+
                 <button class="icon-btn notif-btn" id="requests-btn"
                         onclick="openRequestsModal()" title="Запросы в друзья">
                     🔔
@@ -49,6 +61,7 @@
                 <div class="my-profile-menu-btn friend-menu-btn" onclick="toggleMyProfileMenu()">⋮</div>
                 <div id="my-profile-menu-dropdown" class="friend-menu-dropdown" style="display: none;">
                     <button onclick="generateMyProfileHTML()">💻 Показать HTML-код</button>
+                    <button id="admin-broadcast-menu-btn" onclick="openBroadcastModal()" style="display:none; color: var(--text) !important;">📢 Сообщение всем</button>
                 </div>
 
                 <div class="profile-display">
@@ -127,6 +140,7 @@
             <div class="friend-menu-btn" onclick="toggleFriendMenu()">⋮</div>
             <div id="friend-menu-dropdown" class="friend-menu-dropdown" style="display: none;">
                 <button onclick="removeCurrentFriend()">Удалить друга</button>
+                <button id="admin-edit-friend-btn" onclick="openAdminEditFriendModal()" style="display:none; color: var(--text) !important;">✏️ Редактировать профиль</button>
                 <button onclick="showSoonToast()">Soon...</button>
             </div>
 
@@ -222,6 +236,74 @@
             <pre class="html-preview-code" id="html-preview-code"></pre>
             <button class="save-btn" onclick="copyHtmlCode()">📋 Копировать</button>
             <button class="close-btn" onclick="closeHtmlPreview()">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- Admin: Broadcast Message Modal -->
+    <div id="broadcast-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+            <h3 class="modal-title">📢 Сообщение всем</h3>
+            <p class="modal-subtitle">Уведомление получат все онлайн-пользователи</p>
+            <textarea id="broadcast-input" class="edit-input-field bio-textarea"
+                placeholder="Текст сообщения..." maxlength="300"
+                style="height:100px; text-align:left; resize:none;"></textarea>
+            <button class="admin-action-btn" onclick="sendBroadcast()">📤 Отправить всем</button>
+            <button class="close-btn" onclick="closeBroadcastModal()">Отмена</button>
+        </div>
+    </div>
+
+    <!-- Admin: Edit Friend Profile Modal -->
+    <div id="admin-edit-friend-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+            <h3 class="modal-title">✏️ Редактировать профиль</h3>
+            <p class="modal-subtitle" id="admin-edit-subtitle">Редактирование чужого профиля</p>
+
+            <div class="profile-edit-header">
+                <input type="text" id="admin-edit-name" class="edit-input-field name-field" placeholder="Имя">
+                <input type="text" id="admin-edit-username" class="edit-input-field user-field" placeholder="@username">
+                <div id="admin-edit-username-error" class="field-error"></div>
+            </div>
+
+            <div class="bio-section">
+                <label class="input-label">О себе</label>
+                <textarea id="admin-edit-bio" class="edit-input-field bio-textarea"
+                    placeholder="Расскажите о себе..." maxlength="150"></textarea>
+            </div>
+
+            <div class="badges-edit-section">
+                <label class="badge-checkbox" id="admin-edit-aaa-row">
+                    <input type="checkbox" id="admin-edit-aaa">
+                    <span>Показывать "ААА ТЕРАРИСТ"</span>
+                </label>
+                <select id="admin-edit-status" class="edit-input-field status-select">
+                    <option value="">Без статуса</option>
+                    <option value="лайк.svg">Лайк 👍</option>
+                    <option value="HEXWAR.svg">Hex War</option>
+                    <option value="idivan.svg">I 💚 Divan</option>
+                    <option value="iklinb.svg">I 💚 Klinb</option>
+                    <option value="ixibsy.svg">Ixibsy</option>
+                    <option value="галка.svg">Верификация</option>
+                    <option value="занЯт.svg">Занят</option>
+                </select>
+            </div>
+
+            <div class="social-section">
+                <div class="input-group">
+                    <span class="icon">💬</span>
+                    <input type="text" id="admin-edit-discord" placeholder="Discord ID">
+                </div>
+                <div class="input-group">
+                    <span class="icon">✈️</span>
+                    <input type="text" id="admin-edit-telegram" placeholder="Telegram @handle">
+                </div>
+            </div>
+
+            <div class="actions" style="margin-top:10px;">
+                <button class="save-btn" id="admin-edit-save-btn" onclick="saveAdminFriendEdit()">Сохранить</button>
+                <button class="close-btn" onclick="closeAdminEditFriendModal()">Отмена</button>
+            </div>
         </div>
     </div>
 
