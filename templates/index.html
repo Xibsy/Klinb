@@ -42,7 +42,6 @@
 
                 <button class="icon-btn" id="theme-toggle" title="Сменить тему">🌓</button>
                 <button class="icon-btn" onclick="location.href='/lenta'" title="Лента">📰</button>
-                <button class="icon-btn" onclick="logout()" title="Выйти">🚪</button>
             </div>
         </header>
 
@@ -79,6 +78,17 @@
                     <div class="info-row telegram-row"><span>✈️</span> <span id="display-telegram">не указан</span></div>
                 </div>
                 <button class="edit-mode-btn" onclick="toggleEdit(true)">Редактировать профиль</button>
+
+                <!-- Сохранённые аккаунты / переключение -->
+                <div class="accounts-section" id="accounts-section">
+                    <div class="accounts-header">
+                        <span class="accounts-title">Аккаунты</span>
+                        <button class="accounts-add-btn" onclick="showAddAccountOverlay()">+ Добавить</button>
+                    </div>
+                    <div class="accounts-list" id="accounts-list"></div>
+                </div>
+
+                <button class="logout-btn" onclick="logout()">🚪 Выйти из аккаунта</button>
                 <button class="close-btn" onclick="closeProfile()">Закрыть</button>
             </div>
 
@@ -305,6 +315,11 @@
                 <button class="close-btn" onclick="closeAdminEditFriendModal()">Отмена</button>
             </div>
         </div>
+    </div>
+
+    <div id="account-switching-overlay" class="account-switching-overlay">
+        <div class="account-switching-spinner"></div>
+        <div class="account-switching-label" id="account-switching-label">Переключение...</div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

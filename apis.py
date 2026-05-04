@@ -1,6 +1,8 @@
 import os
 import base64
+from collections.abc import dict_values
 
+from data.models.login_token import LoginToken
 from data.utilities.html_generator import generate_html
 from secret import SECRET_KEY, ADMINS
 from data.utilities.friend_to_point import friend_to_point
@@ -494,4 +496,38 @@ def create_broadcast() -> tuple[Response, int]:
     message = data['message']
     Message.create(message)
     return jsonify({'status': 'success'}), 200
+
+
+@api.route('/api/remember_token', methods=['GET'])
+def remember_token() -> tuple[Response, int]:
+    ip = request.remote_addr
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    username = user.username
+    LoginToken.create_new_token(username, ip)
+    token = db_sess.query(LoginToken).filter(LoginToken.username == username and LoginToken.ip == ip).first().token
+    db_sess.close()
+    return jsonify({'status': 'success', 'token': token}), 200
+
+
+@api.route('/api/login_with_token', methods=['POST'])
+def login_with_token() -> tuple[Response, int]:
+    data = request.get_json()
+    db_sess = db.create_session()
+    ip = request.remote_addr
+    username = data['username']
+    token = data['token']
+    token_to_login = db_sess.query(LoginToken).filter(LoginToken.username == username and LoginToken.ip == ip).first()
+    if not token_to_login:
+        db_sess.close()
+        return jsonify({'status': 'error', 'message': 'ты по моему перепутал'}), 401
+
+    if token == token_to_login.token:
+        user = db_sess.query(User).filter(User.username == username).first()
+        db_sess.close()
+        return jsonify({'status': 'success', 'user': user.to_dict()}), 200
+    db_sess.close()
+    return jsonify({'status': 'error', 'message': 'ти тупой скамiр'}), 401
+
+
 

@@ -263,6 +263,7 @@ async function loginUser() {
             loadFriends();
             startRequestsPolling();
             startBroadcastPolling();
+            saveCurrentAccountToList();
             showToast(`С возвращением, ${userState.name || username}!`);
         } else {
             if (errorEl) errorEl.textContent = data.message || 'Ошибка входа';
@@ -312,6 +313,7 @@ async function registerUser() {
             loadFriends();
             startRequestsPolling();
             startBroadcastPolling();
+            saveCurrentAccountToList();
             showToast('Добро пожаловать!');
         } else {
             showToast('Ошибка: ' + data.message);
@@ -457,6 +459,7 @@ function toggleEdit(isEdit) {
 function openProfile() {
     if (!isAuthenticated) { showAuthModal(); return; }
     toggleEdit(false);
+    renderAccountsList();
     document.getElementById('profile-modal')?.classList.add('active');
 }
 
@@ -1587,12 +1590,160 @@ async function saveAdminFriendEdit() {
     }
 }
 
+// ─── SAVED ACCOUNTS ──────────────────────────────────────────────────────────
+// Хранит [{username, name, avatar, token}] в localStorage
+// token — remember-токен, выданный сервером после входа
+
+const ACCOUNTS_KEY = 'klinb_saved_accounts';
+
+function getSavedAccounts() {
+    try {
+        return JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]');
+    } catch { return []; }
+}
+
+function setSavedAccounts(list) {
+    try {
+        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(list));
+    } catch (e) { console.warn('Cannot save accounts:', e); }
+}
+
+/** Сохраняет текущий аккаунт в список, обновляя если уже есть */
+async function saveCurrentAccountToList() {
+    let token = null;
+    try {
+        const res = await fetch('/api/remember_token');
+        const data = await res.json();
+        if (data.token) token = data.token;
+    } catch (e) {
+        console.warn('Cannot get remember token:', e);
+    }
+    if (!token) return; // сервер не поддерживает — не сохраняем
+
+    const accounts = getSavedAccounts();
+    const idx = accounts.findIndex(a => a.username === userState.username);
+    const entry = {
+        username: userState.username,
+        name:     userState.name     || userState.username,
+        avatar:   userState.avatar   || DEFAULT_STATE.avatar,
+        token
+    };
+    if (idx >= 0) accounts[idx] = entry;
+    else accounts.unshift(entry);
+    setSavedAccounts(accounts);
+    renderAccountsList();
+}
+
+/** Рендерит список аккаунтов в профиле */
+function renderAccountsList() {
+    const container = document.getElementById('accounts-list');
+    if (!container) return;
+
+    const accounts = getSavedAccounts();
+    // Фильтруем текущий аккаунт — он уже открыт
+    const others = accounts.filter(a => a.username !== userState.username);
+
+    if (others.length === 0) {
+        container.innerHTML = '<div style="padding:10px 0; color:#8e8e93; font-size:14px;">Нет других аккаунтов</div>';
+        return;
+    }
+
+    container.innerHTML = others.map(a => `
+        <div class="account-row" onclick="switchToAccount('${escapeHtml(a.username)}')">
+            <img class="account-row-avatar"
+                 src="${escapeHtml(a.avatar)}"
+                 onerror="this.src='${DEFAULT_STATE.avatar}'"
+                 alt="">
+            <div class="account-row-info">
+                <div class="account-row-name">${escapeHtml(a.name)}</div>
+                <div class="account-row-username">@${escapeHtml(a.username)}</div>
+            </div>
+            <button class="account-row-remove"
+                    onclick="event.stopPropagation(); removeSavedAccount('${escapeHtml(a.username)}')"
+                    title="Удалить из списка">✕</button>
+        </div>
+    `).join('');
+}
+
+function removeSavedAccount(username) {
+    const list = getSavedAccounts().filter(a => a.username !== username);
+    setSavedAccounts(list);
+    renderAccountsList();
+    showToast(`Аккаунт @${username} удалён из списка`);
+}
+
+/** Быстрое переключение без ввода пароля */
+async function switchToAccount(username) {
+    const accounts = getSavedAccounts();
+    const account  = accounts.find(a => a.username === username);
+    if (!account?.token) {
+        showToast('Нет токена — войдите вручную');
+        showAddAccountOverlay();
+        return;
+    }
+
+    // Показываем оверлей переключения
+    const overlay = document.getElementById('account-switching-overlay');
+    const label   = document.getElementById('account-switching-label');
+    if (overlay) {
+        if (label) label.textContent = `Вход в @${username}…`;
+        overlay.classList.add('visible');
+    }
+
+    try {
+        const res = await fetch('/api/login_with_token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, token: account.token })
+        });
+        const data = await res.json();
+
+        if (data.status === 'success') {
+            // Сохраняем старый аккаунт
+            await saveCurrentAccountToList();
+            // Переключаемся
+            userState = { ...DEFAULT_STATE, ...data.user };
+            saveStateLocally();
+            isAuthenticated = true;
+            await checkAdminStatus();
+            updateUI();
+            await saveCurrentAccountToList();
+            loadFriends();
+            startRequestsPolling();
+            startBroadcastPolling();
+            closeProfile();
+            showToast(`Вошёл как ${userState.name || username}`);
+        } else {
+            // Токен протух — убираем из списка и просим войти вручную
+            removeSavedAccount(username);
+            showToast('Сессия истекла — войдите вручную');
+            showAddAccountOverlay();
+        }
+    } catch (e) {
+        showToast('Ошибка соединения');
+    } finally {
+        if (overlay) overlay.classList.remove('visible');
+    }
+}
+
+/** Открывает форму входа в новый аккаунт поверх текущего */
+function showAddAccountOverlay() {
+    closeProfile();
+    // Показываем стандартный модал логина, но после входа возвращаемся к switchToAccount
+    showAuthModal('login');
+}
+
 // ─── LOGOUT ───────────────────────────────────────────────────────────────────
 
 function logout() {
     if (requestsPollingInterval) clearInterval(requestsPollingInterval);
     if (broadcastPollingInterval) clearInterval(broadcastPollingInterval);
     isAdmin = false;
+
+    // Убираем текущий аккаунт из быстрого доступа (токен стал невалидным после logout)
+    const accounts = getSavedAccounts().filter(a => a.username !== userState.username);
+    setSavedAccounts(accounts);
+
     fetch('/api/logout', { method: 'POST' })
         .finally(() => {
             localStorage.removeItem('blink_user');
