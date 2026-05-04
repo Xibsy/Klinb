@@ -1,0 +1,533 @@
+import os
+import base64
+from collections.abc import dict_values
+
+from data.models.login_token import LoginToken
+from data.utilities.html_generator import generate_html
+from secret import SECRET_KEY, ADMINS
+from data.utilities.friend_to_point import friend_to_point
+from data.utilities.requests_to_dict import requests_to_dict
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, session, Response, make_response, \
+    send_from_directory
+from werkzeug.utils import secure_filename
+import data.db_session as db
+from data.models.user import User
+from data.models.post import Post
+from data.models.hashtag import Hashtag
+from data.models.post_like import PostLike
+from data.utilities.compress_photo import compress_photo
+from data.models.broadcast_message import Message
+
+
+api = Blueprint('apis', __name__)
+
+
+@api.route('/api/register', methods=['POST'])
+def register() -> tuple[Response, int]:
+    data = request.get_json()
+    name = data.get('name')
+    username = data.get('username')
+    password = data.get('password')
+    avatar = data.get('avatar')
+    discord = data.get('discord')
+    telegram = data.get('telegram')
+
+    if not name or not username or not password:
+        return jsonify({"status": "error", "message": "заполните бланк"}), 400
+    if len(password) < 4:
+        return jsonify({"status": "error", "message": "минимум 4 символа"}), 400
+    if username in ADMINS:
+        if password != ADMINS[username]['password']:
+            return jsonify({"status": "error", "message": "Этот username блатной, выбери другой"}), 400
+    user = User.create_user(name=name, username=username, password=password, avatar=avatar, discord=discord,
+                            telegram=telegram)
+    if not user:
+        return jsonify({"status": "error", "message": "Пользователь с таким username уже существует"}), 400
+
+    session['user_id'] = user.id
+    session['username'] = user.username
+    return jsonify(
+        {"status": "success", "message": f"Добро пожаловать на сайт klinb", "user": user.to_dict()}), 200
+
+
+@api.route('/api/login', methods=['POST'])
+def login() -> tuple[Response, int]:
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    if not username or not password:
+        return jsonify({"status": "error", "message": "введите username и пароль"}), 400
+    user = User.authenticate(username, password)
+    if not user:
+        return jsonify({"status": "error", "message": "неверный username или пароль"}), 401
+    session['user_id'] = user.id
+    session['username'] = user.username
+    return jsonify({"status": "success", "user": user.to_dict()}), 200
+
+
+@api.route('/api/logout', methods=['POST'])
+def logout() -> tuple[Response, int]:
+    session.clear()
+    return jsonify({"status": "success", "message": "Вы вышли"}), 200
+
+
+@api.route('/api/current_user', methods=['GET'])
+def current_user() -> tuple[Response, int]:
+    if 'user_id' in session:
+        db_sess = db.create_session()
+        user = db_sess.get(User, session['user_id'])
+        db_sess.close()
+        if user:
+            return jsonify({"status": "success", "user": user.to_dict()}), 200
+    return jsonify({"status": "error", "message": "еще не зашел :("}), 401
+
+
+@api.route('/new_post', methods=['GET', 'POST'])
+def new_post() -> Response | str:
+    if 'user_id' not in session:
+        return redirect(url_for('pages.index'))
+    if request.method == 'POST':
+        user_id = session['user_id']
+        content = request.form.get('content')
+        image_file = request.files.get('image')
+        filename = None
+        if image_file and image_file.filename != '':
+            filename = secure_filename(image_file.filename)
+            name, ext = os.path.splitext(filename)
+            filename = f"{name}_{os.urandom(4).hex()}{ext}"
+            filepath = os.path.join(api.root_path, 'static', 'uploads', filename)
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            image_file.save(filepath)
+            compress_photo(filepath)
+        db_sess = db.create_session()
+        new_post = Post(user_id=user_id, content=content, image=filename)
+        db_sess.add(new_post)
+        new_post.add_hashtags(session=db_sess)
+        db_sess.commit()
+        db_sess.close()
+        return redirect(url_for('pages.lenta'))
+    return render_template('new_post.html')
+
+
+@api.route('/api/posts', methods=['GET'])
+def get_posts() -> tuple[Response, int]:
+    db_sess = db.create_session()
+    tag = request.args.get('hashtag')
+    if tag:
+        hashtag = db_sess.query(Hashtag).filter(Hashtag.name == tag.lower()).first()
+        posts = hashtag.posts
+    else:
+        posts = db_sess.query(Post).order_by(Post.id.desc()).all()
+
+    current_user_id = session.get('user_id')
+    db_sess.close()
+    return jsonify(
+        {"status": "success", "posts": [post.to_dict(current_user_id=current_user_id) for post in posts]}), 200
+
+
+@api.route('/api/posts', methods=['POST'])
+def create_post_api() -> tuple[Response, int]:
+    if 'user_id' not in session:
+        return jsonify({"status": "error", "message": "Сначала авторизуйтесь"}), 401
+
+    data = request.get_json()
+    content = data.get('content')
+    if not content:
+        return jsonify({"status": "error", "message": "выложи что то, а не пустоту"}), 400
+
+    db_sess = db.create_session()
+    new_post = Post(user_id=session['user_id'], content=content)
+    db_sess.add(new_post)
+    new_post.add_hashtags(session=db_sess)
+    db_sess.commit()
+    db_sess.close()
+
+    return jsonify({"status": "success", "post": new_post.to_dict()}), 201
+
+
+@api.route('/api/add_friend', methods=['POST'])
+def add_friend() -> tuple[Response, int]:
+    data = request.get_json()
+    friend_name = data.get('username')
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    friend = db_sess.query(User).filter(User.username == friend_name).first()
+    try:
+        a = user.outgoing_requests.split(',')
+        b = str(friend.id)
+        print(a)
+        print(b)
+        in_outgoing = b in a
+    except AttributeError:
+        in_outgoing = False
+    user.outgoing_requests = f'{user.outgoing_requests},{friend.to_dict()['id']}' \
+        if user.outgoing_requests is not None else f'{friend.id}'
+    friend.incoming_requests = f'{friend.incoming_requests},{user.to_dict()["id"]}' \
+        if friend.incoming_requests is not None else f'{user.id}'
+
+    if friend_name and friend_name != user.username and not in_outgoing:
+        db_sess.commit()
+        db_sess.close()
+        return jsonify({"status": "success", "message": f"{friend_name} отправлен запрос в друзья"}), 200
+    elif friend_name and friend_name == user.username:
+        db_sess.close()
+        return jsonify({"status": "error", "message": "Зачем себя добавлять?"}), 400
+    elif friend_name and friend_name != user.username and in_outgoing:
+        db_sess.close()
+        return jsonify({'status': 'error', 'message': 'Запрос уже отправлен!'}), 200
+    return jsonify({"status": "error", "message": "напиши сначала кого добавить"}), 400
+
+
+@api.route('/api/find_user/<username>', methods=['GET'])
+def find_user(username: str) -> tuple[Response, int]:
+    db_sess = db.create_session()
+    user = db_sess.query(User).filter(User.username == username).first()
+    db_sess.close()
+    if not user:
+        return jsonify({"status": "error", "message": "Пользователь не найден"}), 404
+    return jsonify({"status": "success", "user": user.to_dict()}), 200
+
+
+@api.route('/api/upload_avatar', methods=['POST'])
+def upload_avatar() -> tuple[Response, int]:
+    if 'user_id' not in session:
+        return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
+
+    image = request.files['avatar']
+    filename = secure_filename(image.filename)
+    name, ext = os.path.splitext(filename)
+    filename = f"{name}_{os.urandom(4).hex()}{ext}"
+    upload_folder = os.path.join(api.root_path, 'static', 'uploads')
+    os.makedirs(upload_folder, exist_ok=True)
+    filepath = os.path.join(upload_folder, filename)
+    image.save(filepath)
+
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    avatar_url = '/static/uploads/' + filename
+    user.avatar = avatar_url
+    db_sess.commit()
+    db_sess.close()
+    return jsonify({"status": "success", "message": "Успех", "avatar_url": avatar_url}), 200
+
+
+@api.route('/api/update_profile', methods=['POST'])
+def update_profile() -> tuple[Response, int]:
+    if 'user_id' not in session:
+        return jsonify({'status': 'error', 'message': 'Вы не вошли'}), 401
+    data = request.get_json()
+    new_name = data.get('name')
+    new_username = data.get('username')
+    new_discord = data.get('discord')
+    new_telegram = data.get('telegram')
+    new_status = data.get('status')
+    new_aaa = data.get('show_aaa')
+    new_bio = data.get('bio')
+    target_id = data.get('target_id')
+    db_sess = db.create_session()
+    if target_id is not None:
+        user = db_sess.get(User, target_id)
+    else:
+        user = db_sess.get(User, session['user_id'])
+    user.name = new_name
+    user.username = new_username
+    user.discord = new_discord
+    user.telegram = new_telegram
+    user.status = new_status
+    user.show_aaa = new_aaa
+    user.bio = new_bio
+    db_sess.commit()
+    db_sess.close()
+    return jsonify({"status": 'success', 'message': 'Успех'}), 200
+
+
+@api.route('/api/update_location', methods=['POST'])
+def update_location() -> tuple[Response, int]:
+    position = request.get_json()
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    user.geo_position = f"{position.get('lat')}, {position.get('lng')}"
+    db_sess.commit()
+    db_sess.close()
+    return jsonify({"status": 'success', 'message': 'Успех'}), 200
+
+
+@api.route('/api/friend_requests', methods=['GET'])
+def friend_requests() -> tuple[Response, int]:
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    if not user:
+        return jsonify(status='error', message='Не авторизован'), 401
+
+    try:
+        incoming_requests = [requests_to_dict(db_sess.query(User).filter(User.id == int(friend_id)).first())
+                             for friend_id in user.incoming_requests.split(',')]
+    except AttributeError:
+        incoming_requests = []
+
+    try:
+        outgoing_requests = [requests_to_dict(db_sess.query(User).filter(User.id == int(friend_id)).first())
+                             for friend_id in user.outgoing_requests.split(',')]
+    except AttributeError:
+        outgoing_requests = []
+    db_sess.close()
+    return jsonify({'incoming': incoming_requests, 'outgoing': outgoing_requests,
+                    'status': 'success'}), 200
+
+
+@api.route('/api/friend_request_respond', methods=['POST'])
+def friend_request_respond() -> tuple[Response, int]:
+    data = request.get_json()
+    user_id = data.get('request_id')
+    action = data.get('action')
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    if not user:
+        return jsonify(status='error', message='Не авторизован'), 401
+
+    friend = db_sess.query(User).filter(User.id == user_id).first()
+
+    if action == 'accept':
+        new_incoming = user.incoming_requests.split(',')
+        new_incoming = new_incoming.remove(str(user_id))
+        user.incoming_requests = ','.join(new_incoming) if new_incoming is not None else None
+
+        new_outgoing = friend.outgoing_requests.split(',')
+        new_outgoing = new_outgoing.remove(str(user.id))
+        friend.outgoing_requests = ','.join(new_outgoing) if new_outgoing is not None else None
+
+        user.friends = f'{user.friends},{friend.to_dict()['id']}' \
+            if user.friends is not None else f'{friend.id}'
+        friend.friends = f'{friend.friends},{user.to_dict()["id"]}' \
+            if friend.friends is not None else f'{user.id}'
+
+        db_sess.commit()
+        db_sess.close()
+        return jsonify({'status': 'success', 'text': 'Вы теперь друзья'}), 200
+    elif action == 'decline':
+        new_incoming = user.incoming_requests.split(',')
+        new_incoming = new_incoming.remove(str(user_id))
+        user.incoming_requests = ','.join(new_incoming) if new_incoming is not None else None
+
+        new_outgoing = friend.outgoing_requests.split(',')
+        new_outgoing = new_outgoing.remove(str(user.id))
+        friend.outgoing_requests = ','.join(new_outgoing) if new_outgoing is not None else None
+
+        db_sess.commit()
+        db_sess.close()
+        return jsonify({'status': 'success', 'text': 'Вы отклонили запрос'}), 200
+    elif action == 'cancel':
+        new_outgoing = user.outgoing_requests.split(',')
+        new_outgoing = new_outgoing.remove(str(user_id))
+        user.outgoing_requests = ','.join(new_outgoing) if new_outgoing is not None else None
+
+        new_incoming = friend.incoming_requests.split(',')
+        new_incoming = new_incoming.remove(str(user.id))
+        friend.incoming_requests = ','.join(new_incoming) if new_incoming is not None else None
+        db_sess.commit()
+        db_sess.close()
+        return jsonify({'status': 'success', 'text': 'Вы отклонили запрос'}), 200
+    db_sess.close()
+    return jsonify({'status': 'error', 'text': 'ты чет не то мне дал брух'}), 400
+
+
+@api.route('/api/friends', methods=['GET'])
+def get_friends() -> tuple[Response, int]:
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    if not user:
+        return jsonify(status='error', message='Не авторизован'), 401
+
+    friends = [friend_to_point(db_sess.query(User).filter(User.id == int(friend)).first())
+               for friend in user.friends.split(',')
+               if friend_to_point(db_sess.query(User).filter(User.id == int(friend)).first()) is not None]
+    db_sess.close()
+
+    return jsonify({'status': 'success', 'friends': friends}), 200
+
+
+@api.route("/api/photos_by_hashtag/<tag_name>", methods=['GET'])
+def get_photos_by_hashtag(tag_name: str) -> tuple[Response, int]:
+    api_key = request.args.get('apikey')
+    if not api_key or api_key != SECRET_KEY:
+        return jsonify({"error": "Bruh, тебе нужен ключ, добудь его в бою"}), 401
+
+    limit = request.args.get('limit')
+    db_sess = db.create_session()
+    hashtag = db_sess.query(Hashtag).filter(Hashtag.name == tag_name.lower()).first()
+    posts_with_photos = []
+
+    if not hashtag:
+        return jsonify({"hashtag": tag_name, "count": 0, "photos": []}), 200
+    for post in hashtag.posts:
+        if not post.image:
+            continue
+        image = os.path.join(api.root_path, 'static', 'uploads', post.image)
+        with open(image, 'rb') as img_file:
+            image_byte = base64.b64encode(img_file.read()).decode('utf-8')
+        posts_with_photos.append(
+            {"img": image_byte, "post_content": post.content, "author_username": post.user.username,
+             "author_name": post.user.name})
+    if limit is not None:
+        limit = int(limit)
+        posts_with_photos = posts_with_photos[:limit]
+
+    db_sess.close()
+    return jsonify({"hashtag": tag_name, "count": len(posts_with_photos), "photos": posts_with_photos}), 200
+
+@api.route('/api/posts/<int:post_id>/like', methods=['POST'])
+def like(post_id: int):
+    if 'user_id' not in session:
+        return jsonify({"status": "error", "message": "Зарегайся"}), 401
+
+    db_sess = db.create_session()
+    user_id = session['user_id']
+    real = db_sess.query(PostLike).filter_by(user_id=user_id, post_id=post_id).first()
+
+    if real:
+        db_sess.delete(real)
+        db_sess.commit()
+        likes = db_sess.query(PostLike).filter_by(post_id=post_id).count()
+        db_sess.close()
+        return jsonify({"status": "success", "liked": False, "likes": likes})
+
+    db_sess.add(PostLike(user_id=user_id, post_id=post_id))
+    db_sess.commit()
+    likes = db_sess.query(PostLike).filter_by(post_id=post_id).count()
+    db_sess.close()
+    return jsonify({"status": "success", "liked": True, "likes": likes})
+
+
+@api.route('/api/image/<filename>')
+def get_image(filename: str) -> Response:
+    return send_from_directory('static/uploads', filename)
+
+
+@api.route("/api/profile_html/<username>", methods=['GET'])
+def html_response(username: str) -> tuple[Response, int]:
+    db_sess = db.create_session()
+    user = db_sess.query(User).filter(User.username == username).first()
+    if not user:
+        db_sess.close()
+        return jsonify({'status': 'error', 'text': 'ты чет промахнулся'}), 404
+
+    html = generate_html(user, request.host_url)
+
+    response = make_response(html)
+    response.headers.set('Content-Type', 'text/json')
+    db_sess.close()
+    return response, 200
+
+
+@api.route('/api/delete_friend', methods=['POST'])
+def delete_user() -> tuple[Response, int]:
+    data = request.get_json()
+    id = data['friend_id']
+
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    if not user:
+        db_sess.close()
+        return jsonify({'status': 'error', 'message': 'ты точно залогинился?'}), 401
+
+    friend = db_sess.query(User).filter(User.id == id).first()
+
+    if not friend:
+        db_sess.close()
+        return jsonify({'status': 'error', 'message': 'ты чет не попал'}), 404
+
+    new_user_friends = user.friends.split(',')
+    new_user_friends.remove(str(id))
+    user.friends = ','.join(new_user_friends) if new_user_friends else None
+
+    new_friend_friends = friend.friends.split(',')
+    new_friend_friends.remove(str(user.id))
+    friend.friends = ','.join(new_friend_friends) if new_friend_friends else None
+
+    db_sess.commit()
+    db_sess.close()
+
+    return jsonify({'status': 'success', 'message': f'Успех - {friend.name} удален из друзей'}), 200
+
+
+@api.after_request
+def add_cors_headers(response) -> tuple[Response, int]:
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return response
+
+
+@api.route('/api/posts/<int:post_id>', methods=['DELETE'])
+def delete_post(post_id: int) -> tuple[Response, int]:
+    if 'user_id' not in session:
+        return jsonify({"status": "error", "message": "Сначала авторизуйтесь"}), 401
+
+    db_sess = db.create_session()
+    post = db_sess.query(Post).filter(Post.id == post_id).first()
+    user = db_sess.get(User, session['user_id'])
+    is_admin = user.username in ADMINS
+
+    if not (is_admin or post.user_id == session['user_id']):
+        db_sess.close()
+        return jsonify({"status": "error", "message": "Нельзя удалить чужой пост"}), 403
+
+    db_sess.query(PostLike).filter(PostLike.post_id == post_id).delete()
+    db_sess.delete(post)
+    db_sess.commit()
+    db_sess.close()
+    return jsonify({"status": "success", "message": "Пост удалён"}), 200
+
+
+@api.route('/api/admins', methods=['GET'])
+def get_admins() -> tuple[Response, int]:
+    return jsonify({'admins': [key for key in ADMINS]}), 200
+
+@api.route('/api/broadcasts/latest', methods=['GET'])
+def get_latest_broadcasts() -> tuple[Response, int]:
+    db_sess = db.create_session()
+    message = db_sess.query(Message).order_by(Message.id.desc()).first()
+    db_sess.close()
+    return jsonify({'status': 'success', 'broadcast': {'id': message.id, 'message': message.content}}), 200
+
+
+@api.route('/api/broadcasts', methods=['POST'])
+def create_broadcast() -> tuple[Response, int]:
+    data = request.get_json()
+    message = data['message']
+    Message.create(message)
+    return jsonify({'status': 'success'}), 200
+
+
+@api.route('/api/remember_token', methods=['GET'])
+def remember_token() -> tuple[Response, int]:
+    ip = request.remote_addr
+    db_sess = db.create_session()
+    user = db_sess.get(User, session['user_id'])
+    username = user.username
+    LoginToken.create_new_token(username, ip)
+    token = db_sess.query(LoginToken).filter(LoginToken.username == username and LoginToken.ip == ip).first().token
+    db_sess.close()
+    return jsonify({'status': 'success', 'token': token}), 200
+
+
+@api.route('/api/login_with_token', methods=['POST'])
+def login_with_token() -> tuple[Response, int]:
+    data = request.get_json()
+    db_sess = db.create_session()
+    ip = request.remote_addr
+    username = data['username']
+    token = data['token']
+    token_to_login = db_sess.query(LoginToken).filter(LoginToken.username == username and LoginToken.ip == ip).first()
+    if not token_to_login:
+        db_sess.close()
+        return jsonify({'status': 'error', 'message': 'ты по моему перепутал'}), 401
+
+    if token == token_to_login.token:
+        user = db_sess.query(User).filter(User.username == username).first()
+        db_sess.close()
+        return jsonify({'status': 'success', 'user': user.to_dict()}), 200
+    db_sess.close()
+    return jsonify({'status': 'error', 'message': 'ти тупой скамiр'}), 401
+
+
+

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <title>Лента — Klinb</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='lenta.css') }}">
+</head>
+<body>
+
+    <header class="top-bar">
+        <span class="top-bar-title">📰 Лента</span>
+        <div class="top-actions">
+            <a class="icon-btn" href="/" title="Карта">🗺️</a>
+            <button class="icon-btn" id="theme-toggle" title="Сменить тему" onclick="toggleTheme()">🌓</button>
+            <button class="icon-btn" onclick="logout()" title="Выйти">🚪</button>
+        </div>
+    </header>
+
+    <div class="feed-container">
+
+        {% if hashtag %}
+        <div class="hashtag-filter">
+            <span>🔍&nbsp; #{{ hashtag }}</span>
+            <a href="/lenta" title="Очистить фильтр">✕</a>
+        </div>
+        {% endif %}
+
+        {% for post in posts %}
+        <article class="post-card" data-post-id="{{ post.id }}" style="animation-delay: {{ loop.index0 * 0.05 }}s">
+            <div class="post-header">
+                <div class="post-avatar-placeholder"
+                     data-username="{{ post.user.username if post.user else 'unknown' }}"
+                     data-avatar-url="{% if post.user and post.user.avatar %}{{ url_for('static', filename='uploads/' + post.user.avatar.split('/')[-1]) }}{% endif %}">
+                </div>
+
+                <div class="post-meta">
+                    <span class="post-username">@{{ post.user.username if post.user else "unknown" }}</span>
+                    <span class="post-time">{{ post.created_at.strftime('%d.%m.%Y %H:%M') if post.created_at else '' }}</span>
+                </div>
+
+                {% if current_user_id == post.user_id or is_admin %}
+                <button class="delete-post-btn" data-post-id="{{ post.id }}" title="Удалить пост">  Удалить</button>
+                {% endif %}
+            </div>
+
+            {% if post.content %}
+            <div class="post-content">{{ post.content }}</div>
+            {% endif %}
+
+            {% if post.image %}
+            <img class="post-image"
+                 src="{{ url_for('static', filename='uploads/' + post.image) }}"
+                 alt="Фото поста">
+            {% endif %}
+
+            {% if post.hashtags %}
+            <div class="post-tags">
+                {% for tag in post.hashtags %}
+                <a href="/hashtag/{{ tag.name }}" class="hashtag-pill">#{{ tag.name }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <button class="like-btn" data-post-id="{{ post.id }}">
+                <span class="like-icon">❤️</span>
+                <span class="like-count">{{ post.likes.count() if post.likes else 0 }}</span>
+            </button>
+        </article>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🌱</div>
+            <p>Пока нет постов.<br>Будьте первым!</p>
+            <a href="/new_post" class="fab" style="position:static;display:inline-flex;width:auto;height:auto;padding:14px 24px;border-radius:50px;font-size:15px;font-weight:700;gap:8px;box-shadow:0 6px 24px rgba(52,199,89,.4)">✏️ Создать пост</a>
+        </div>
+        {% endfor %}
+
+    </div>
+
+    <a href="/new_post" class="fab" title="Создать пост">✏️</a>
+
+    <script src="{{ url_for('static', filename='lenta.js') }}"></script>
+</body>
+</html>

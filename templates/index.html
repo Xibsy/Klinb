@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <title>Klinb</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-theme="dark">
+
+    <!-- Admin broadcast notification banner (top) -->
+    <div id="broadcast-banner" class="broadcast-banner">
+        <div class="broadcast-banner-inner">
+            <span class="broadcast-icon">📢</span>
+            <div class="broadcast-content">
+                <div class="broadcast-title">Сообщение от администратора</div>
+                <div class="broadcast-message" id="broadcast-message-text"></div>
+            </div>
+            <button class="broadcast-close" onclick="dismissBroadcast()">✕</button>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="ui-overlay">
+        <header class="top-bar">
+            <div class="profile-btn" onclick="openProfile()">
+                <img src="/static/uploads/volosatic.jpg" alt="Avatar" id="nav-avatar">
+                <span id="nav-username">Загрузка...</span>
+            </div>
+            <div class="top-actions">
+                <button class="icon-btn" onclick="flyToMyLocation()" title="Моя позиция">📍</button>
+                <button class="icon-btn" onclick="openAddFriendModal()" title="Добавить друга">+</button>
+
+                <button class="icon-btn notif-btn" id="requests-btn"
+                        onclick="openRequestsModal()" title="Запросы в друзья">
+                    🔔
+                    <span class="notif-badge" id="requests-badge" style="display:none">0</span>
+                </button>
+
+                <button class="icon-btn" id="theme-toggle" title="Сменить тему">🌓</button>
+                <button class="icon-btn" onclick="location.href='/lenta'" title="Лента">📰</button>
+            </div>
+        </header>
+
+        <footer class="bottom-sheet">
+            <div class="friends-scroll" id="friends-list"></div>
+        </footer>
+    </div>
+
+    <!-- Profile modal (свой) -->
+    <div id="profile-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+
+            <div id="view-mode">
+                <!-- Кнопка меню (троеточие) -->
+                <div class="my-profile-menu-btn friend-menu-btn" onclick="toggleMyProfileMenu()">⋮</div>
+                <div id="my-profile-menu-dropdown" class="friend-menu-dropdown" style="display: none;">
+                    <button onclick="generateMyProfileHTML()">💻 Показать HTML-код</button>
+                    <button id="admin-broadcast-menu-btn" onclick="openBroadcastModal()" style="display:none; color: var(--text) !important;">📢 Сообщение всем</button>
+                </div>
+
+                <div class="profile-display">
+                <img src="" id="display-avatar" class="large-avatar">
+                <div class="name-wrapper">
+                    <img src="" id="display-aaa" class="badge-icon" style="display: none;" title="ААА ТЕРАРИСТ">
+                    <h2 id="display-name"></h2>
+                    <img src="" id="display-status" class="badge-icon" style="display: none;">
+                </div>
+                <p id="display-username">@username</p>
+                <p id="display-bio" class="profile-bio"></p>
+                </div>
+                <div class="social-info" id="my-social-info">
+                    <div class="info-row discord-row"><span>💬</span> <span id="display-discord">не указан</span></div>
+                    <div class="info-row telegram-row"><span>✈️</span> <span id="display-telegram">не указан</span></div>
+                </div>
+                <button class="edit-mode-btn" onclick="toggleEdit(true)">Редактировать профиль</button>
+
+                <!-- Сохранённые аккаунты / переключение -->
+                <div class="accounts-section" id="accounts-section">
+                    <div class="accounts-header">
+                        <span class="accounts-title">Аккаунты</span>
+                        <button class="accounts-add-btn" onclick="showAddAccountOverlay()">+ Добавить</button>
+                    </div>
+                    <div class="accounts-list" id="accounts-list"></div>
+                </div>
+
+                <button class="logout-btn" onclick="logout()">🚪 Выйти из аккаунта</button>
+                <button class="close-btn" onclick="closeProfile()">Закрыть</button>
+            </div>
+
+            <div id="edit-mode" style="display: none;">
+                <div class="profile-edit-header">
+                    <div class="avatar-wrapper" onclick="document.getElementById('avatar-input').click()">
+                        <img src="" id="edit-avatar">
+                        <div class="edit-overlay">📸</div>
+                    </div>
+                    <input type="file" id="avatar-input" hidden accept="image/*">
+                    <div id="avatar-upload-status" class="upload-status"></div>
+
+                    <input type="text" id="input-name" class="edit-input-field name-field" placeholder="Твоё Имя">
+                    <input type="text" id="input-username" class="edit-input-field user-field" placeholder="@username">
+                    <div id="username-error" class="field-error"></div>
+                </div>
+
+                <div class="badges-edit-section">
+                <label class="badge-checkbox">
+                    <input type="checkbox" id="input-aaa">
+                    <span>Показывать "ААА ТЕРАРИСТ"</span>
+                </label>
+                <select id="input-status" class="edit-input-field status-select"><option value="">Без статуса</option><option value="лайк.svg">Лайк 👍</option>
+                    <option value="HEXWAR.svg">Hex War</option>
+                    <option value="idivan.svg">I 💚 Divan</option>
+                    <option value="iklinb.svg">I 💚 Klinb</option>
+                    <option value="ixibsy.svg">Ixibsy</option>
+                    <option value="галка.svg">Верификация</option>
+                    <option value="занЯт.svg">Занят</option></select>
+            </div>
+            <div class="bio-section">
+                <label class="input-label">О себе</label>
+                <textarea id="input-bio" class="edit-input-field bio-textarea" placeholder="Расскажите о себе..." maxlength="150"></textarea>
+            </div>
+            <div class="social-section">
+                    <div class="input-group">
+                        <span class="icon">💬</span>
+                        <input type="text" id="input-discord" placeholder="Discord ID">
+                    </div>
+                    <div class="input-group">
+                        <span class="icon">✈️</span>
+                        <input type="text" id="input-telegram" placeholder="Telegram @handle">
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <button class="save-btn" id="save-btn" onclick="saveProfile()">Сохранить</button>
+                    <button class="close-btn" onclick="toggleEdit(false)">Отмена</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Friend profile modal -->
+    <div id="friend-profile-modal" class="modal">
+        <div class="modal-content friend-modal-content">
+            <div class="modal-handle"></div>
+
+            <div class="friend-menu-btn" onclick="toggleFriendMenu()">⋮</div>
+            <div id="friend-menu-dropdown" class="friend-menu-dropdown" style="display: none;">
+                <button onclick="removeCurrentFriend()">Удалить друга</button>
+                <button id="admin-edit-friend-btn" onclick="openAdminEditFriendModal()" style="display:none; color: var(--text) !important;">✏️ Редактировать профиль</button>
+                <button onclick="showSoonToast()">Soon...</button>
+            </div>
+
+            <div class="profile-display">
+                <img src="" id="friend-avatar" class="large-avatar">
+                <div class="name-wrapper">
+                    <!-- Добавлено отображение значков для друзей -->
+                    <img src="" id="friend-aaa" class="badge-icon" style="display: none;" title="ААА ТЕРАРИСТ">
+                    <h2 id="friend-name"></h2>
+                    <img src="" id="friend-status" class="badge-icon" style="display: none;">
+                </div>
+                <p id="friend-username">@username</p>
+                <!-- Добавлено отображение описания для друзей -->
+                <p id="friend-bio" class="profile-bio"></p>
+            </div>
+            <div class="social-info" id="friend-social-info">
+                <div class="info-row discord-row"><span>💬</span> <span id="friend-discord">не указан</span></div>
+                <div class="info-row telegram-row"><span>✈️</span> <span id="friend-telegram">не указан</span></div>
+            </div>
+            <button class="close-btn" onclick="closeFriendProfile()">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- Add friend modal -->
+    <div id="add-friend-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+            <h3 class="modal-title">Добавить друга</h3>
+            <p class="modal-subtitle">Введите @username или имя пользователя</p>
+            <input type="text" id="friend-search-input" class="edit-input-field" placeholder="@username">
+            <div id="friend-search-result" class="friend-search-result"></div>
+            <button class="save-btn" onclick="searchAndAddFriend()">Найти</button>
+            <button class="close-btn" onclick="closeAddFriendModal()">Отмена</button>
+        </div>
+    </div>
+
+    <!-- Requests modal -->
+    <div id="requests-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+            <h3 class="modal-title">Запросы в друзья</h3>
+            <p class="modal-subtitle" id="requests-subtitle">Входящие запросы</p>
+
+            <div class="requests-tabs">
+                <button class="req-tab active" id="tab-incoming" onclick="switchRequestsTab('incoming')">
+                    Входящие <span class="tab-count" id="incoming-count">0</span>
+                </button>
+                <button class="req-tab" id="tab-outgoing" onclick="switchRequestsTab('outgoing')">
+                    Исходящие <span class="tab-count" id="outgoing-count">0</span>
+                </button>
+            </div>
+
+            <div id="requests-list" class="requests-list">
+                <div class="requests-empty">Загрузка...</div>
+            </div>
+
+            <button class="close-btn" onclick="closeRequestsModal()">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- Crop modal -->
+    <div id="crop-modal" class="modal">
+        <div class="modal-content crop-modal-content">
+            <div class="modal-handle"></div>
+            <h3 class="modal-title">Обрезать фото</h3>
+            <p class="modal-subtitle">Перемещай и масштабируй изображение</p>
+
+            <div class="crop-stage">
+                <canvas id="crop-canvas"></canvas>
+                <div class="crop-corner crop-corner--tl"></div>
+                <div class="crop-corner crop-corner--tr"></div>
+                <div class="crop-corner crop-corner--bl"></div>
+                <div class="crop-corner crop-corner--br"></div>
+            </div>
+
+            <div class="crop-zoom-row">
+                <span class="crop-zoom-icon">🔍</span>
+                <input type="range" id="crop-zoom" min="0" max="1" step="0.001" value="0">
+                <span class="crop-zoom-icon">🔎</span>
+            </div>
+
+            <button class="save-btn" onclick="confirmCrop()">Применить</button>
+            <button class="close-btn" onclick="closeCropModal()">Отмена</button>
+        </div>
+    </div>
+
+    <!-- HTML Preview Modal -->
+    <div id="html-preview-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+            <h3 class="modal-title">HTML-код профиля</h3>
+            <p class="modal-subtitle">Скопируйте код и используйте где угодно</p>
+            <pre class="html-preview-code" id="html-preview-code"></pre>
+            <button class="save-btn" onclick="copyHtmlCode()">📋 Копировать</button>
+            <button class="close-btn" onclick="closeHtmlPreview()">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- Admin: Broadcast Message Modal -->
+    <div id="broadcast-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+            <h3 class="modal-title">📢 Сообщение всем</h3>
+            <p class="modal-subtitle">Уведомление получат все онлайн-пользователи</p>
+            <textarea id="broadcast-input" class="edit-input-field bio-textarea"
+                placeholder="Текст сообщения..." maxlength="300"
+                style="height:100px; text-align:left; resize:none;"></textarea>
+            <button class="admin-action-btn" onclick="sendBroadcast()">📤 Отправить всем</button>
+            <button class="close-btn" onclick="closeBroadcastModal()">Отмена</button>
+        </div>
+    </div>
+
+    <!-- Admin: Edit Friend Profile Modal -->
+    <div id="admin-edit-friend-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-handle"></div>
+            <h3 class="modal-title">✏️ Редактировать профиль</h3>
+            <p class="modal-subtitle" id="admin-edit-subtitle">Редактирование чужого профиля</p>
+
+            <div class="profile-edit-header">
+                <input type="text" id="admin-edit-name" class="edit-input-field name-field" placeholder="Имя">
+                <input type="text" id="admin-edit-username" class="edit-input-field user-field" placeholder="@username">
+                <div id="admin-edit-username-error" class="field-error"></div>
+            </div>
+
+            <div class="bio-section">
+                <label class="input-label">О себе</label>
+                <textarea id="admin-edit-bio" class="edit-input-field bio-textarea"
+                    placeholder="Расскажите о себе..." maxlength="150"></textarea>
+            </div>
+
+            <div class="badges-edit-section">
+                <label class="badge-checkbox" id="admin-edit-aaa-row">
+                    <input type="checkbox" id="admin-edit-aaa">
+                    <span>Показывать "ААА ТЕРАРИСТ"</span>
+                </label>
+                <select id="admin-edit-status" class="edit-input-field status-select">
+                    <option value="">Без статуса</option>
+                    <option value="лайк.svg">Лайк 👍</option>
+                    <option value="HEXWAR.svg">Hex War</option>
+                    <option value="idivan.svg">I 💚 Divan</option>
+                    <option value="iklinb.svg">I 💚 Klinb</option>
+                    <option value="ixibsy.svg">Ixibsy</option>
+                    <option value="галка.svg">Верификация</option>
+                    <option value="занЯт.svg">Занят</option>
+                </select>
+            </div>
+
+            <div class="social-section">
+                <div class="input-group">
+                    <span class="icon">💬</span>
+                    <input type="text" id="admin-edit-discord" placeholder="Discord ID">
+                </div>
+                <div class="input-group">
+                    <span class="icon">✈️</span>
+                    <input type="text" id="admin-edit-telegram" placeholder="Telegram @handle">
+                </div>
+            </div>
+
+            <div class="actions" style="margin-top:10px;">
+                <button class="save-btn" id="admin-edit-save-btn" onclick="saveAdminFriendEdit()">Сохранить</button>
+                <button class="close-btn" onclick="closeAdminEditFriendModal()">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="account-switching-overlay" class="account-switching-overlay">
+        <div class="account-switching-spinner"></div>
+        <div class="account-switching-label" id="account-switching-label">Переключение...</div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
