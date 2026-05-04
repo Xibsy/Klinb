@@ -45,7 +45,7 @@ def register() -> tuple[Response, int]:
     session['user_id'] = user.id
     session['username'] = user.username
     return jsonify(
-        {"status": "success", "message": f"Добро пожаловать на сайт klinb, {name}", "user": user.to_dict()}), 200
+        {"status": "success", "message": f"Добро пожаловать на сайт klinb", "user": user.to_dict()}), 200
 
 
 @api.route('/api/login', methods=['POST'])
