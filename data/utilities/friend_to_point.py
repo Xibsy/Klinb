@@ -9,6 +9,8 @@ def friend_to_point(friend) -> dict | None:
         'status': friend.status,
         'show_aaa': friend.show_aaa,
         'bio': friend.bio,
+        'telegram': friend.telegram,
+        'discord': friend.discord,
         }
         return point
     except AttributeError:
