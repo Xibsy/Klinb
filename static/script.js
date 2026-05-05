@@ -1691,6 +1691,7 @@ async function switchToAccount(username) {
     }
 
     try {
+        await saveCurrentAccountToList();
         const res = await fetch('/api/login_with_token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1700,7 +1701,6 @@ async function switchToAccount(username) {
 
         if (data.status === 'success') {
             // Сохраняем старый аккаунт
-            await saveCurrentAccountToList();
             // Переключаемся
             userState = { ...DEFAULT_STATE, ...data.user };
             saveStateLocally();

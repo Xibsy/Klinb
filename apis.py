@@ -1,6 +1,5 @@
 import os
 import base64
-from collections.abc import dict_values
 
 from data.models.login_token import LoginToken
 from data.utilities.html_generator import generate_html
@@ -500,14 +499,13 @@ def create_broadcast() -> tuple[Response, int]:
 
 @api.route('/api/remember_token', methods=['GET'])
 def remember_token() -> tuple[Response, int]:
-    ip = request.remote_addr
+    ip = request.headers.get('X-Forwarded-For')
     db_sess = db.create_session()
     user = db_sess.get(User, session['user_id'])
     username = user.username
     token = db_sess.query(LoginToken).filter(LoginToken.username == username and LoginToken.ip == ip).first()
     if token is not None:
-        return_token = db_sess.query(LoginToken).filter(LoginToken.username == username
-                                                        and LoginToken.ip == ip).first().token
+        return_token = token.token
     else:
         LoginToken.create_new_token(username, ip)
         return_token = db_sess.query(LoginToken).filter(LoginToken.username == username
@@ -521,7 +519,7 @@ def remember_token() -> tuple[Response, int]:
 def login_with_token() -> tuple[Response, int]:
     data = request.get_json()
     db_sess = db.create_session()
-    ip = request.remote_addr
+    ip = request.headers.get('X-Forwarded-For')
     username = data['username']
     token = data['token']
     token_to_login = db_sess.query(LoginToken).filter(LoginToken.username == username and LoginToken.ip == ip).first()
