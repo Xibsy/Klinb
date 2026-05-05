@@ -19,10 +19,10 @@ from data.models.broadcast_message import Message
 
 
 api = Blueprint('apis', __name__)
-#У нас из за переноса в файл другой пропали надписи кто что делал, так что я подпишу, где нету подписи - Льва
+
 
 @api.route('/api/register', methods=['POST'])
-def register() -> tuple[Response, int]: #Диванчик
+def register() -> tuple[Response, int]:
     data = request.get_json()
     name = data.get('name')
     username = data.get('username')
@@ -50,7 +50,7 @@ def register() -> tuple[Response, int]: #Диванчик
 
 
 @api.route('/api/login', methods=['POST'])
-def login() -> tuple[Response, int]:    #Диванчик
+def login() -> tuple[Response, int]:
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
@@ -65,14 +65,14 @@ def login() -> tuple[Response, int]:    #Диванчик
 
 
 @api.route('/api/logout', methods=['POST'])
-def logout() -> tuple[Response, int]:   #Диванчик
+def logout() -> tuple[Response, int]:
     session.clear()
     return jsonify({"status": "success", "message": "Вы вышли"}), 200
 
 
 @api.route('/api/current_user', methods=['GET'])
 def current_user() -> tuple[Response, int]:
-    if 'user_id' in session:    #Диванчик и xibsy
+    if 'user_id' in session:
         db_sess = db.create_session()
         user = db_sess.get(User, session['user_id'])
         db_sess.close()
@@ -83,7 +83,7 @@ def current_user() -> tuple[Response, int]:
 
 @api.route('/new_post', methods=['GET', 'POST'])
 def new_post() -> Response | str:
-    if 'user_id' not in session:    #Диванчик
+    if 'user_id' not in session:
         return redirect(url_for('pages.index'))
     if request.method == 'POST':
         user_id = session['user_id']
@@ -109,7 +109,7 @@ def new_post() -> Response | str:
 
 
 @api.route('/api/posts', methods=['GET'])
-def get_posts() -> tuple[Response, int]:    #Диванчик
+def get_posts() -> tuple[Response, int]:
     db_sess = db.create_session()
     tag = request.args.get('hashtag')
     if tag:
@@ -125,7 +125,7 @@ def get_posts() -> tuple[Response, int]:    #Диванчик
 
 
 @api.route('/api/posts', methods=['POST'])
-def create_post_api() -> tuple[Response, int]:  #Диванчик
+def create_post_api() -> tuple[Response, int]:
     if 'user_id' not in session:
         return jsonify({"status": "error", "message": "Сначала авторизуйтесь"}), 401
 
@@ -346,7 +346,7 @@ def get_friends() -> tuple[Response, int]:
 
 
 @api.route("/api/photos_by_hashtag/<tag_name>", methods=['GET'])
-def get_photos_by_hashtag(tag_name: str) -> tuple[Response, int]:   #Диванчик
+def get_photos_by_hashtag(tag_name: str) -> tuple[Response, int]:
     api_key = request.args.get('apikey')
     if not api_key or api_key != SECRET_KEY:
         return jsonify({"error": "Bruh, тебе нужен ключ, добудь его в бою"}), 401
@@ -375,7 +375,7 @@ def get_photos_by_hashtag(tag_name: str) -> tuple[Response, int]:   #Диван�
     return jsonify({"hashtag": tag_name, "count": len(posts_with_photos), "photos": posts_with_photos}), 200
 
 @api.route('/api/posts/<int:post_id>/like', methods=['POST'])
-def like(post_id: int):     #Диванчик
+def like(post_id: int):
     if 'user_id' not in session:
         return jsonify({"status": "error", "message": "Зарегайся"}), 401
 
@@ -457,7 +457,7 @@ def add_cors_headers(response) -> tuple[Response, int]:
 
 
 @api.route('/api/posts/<int:post_id>', methods=['DELETE'])
-def delete_post(post_id: int) -> tuple[Response, int]:  #Диванчик
+def delete_post(post_id: int) -> tuple[Response, int]:
     if 'user_id' not in session:
         return jsonify({"status": "error", "message": "Сначала авторизуйтесь"}), 401
 
@@ -529,6 +529,8 @@ def login_with_token() -> tuple[Response, int]:
 
     if token == token_to_login.token:
         user = db_sess.query(User).filter(User.username == username).first()
+        session['user_id'] = user.id
+        session['username'] = user.username
         db_sess.close()
         return jsonify({'status': 'success', 'user': user.to_dict()}), 200
     db_sess.close()
