@@ -500,7 +500,7 @@ def create_broadcast() -> tuple[Response, int]:
 
 @api.route('/api/remember_token', methods=['GET'])
 def remember_token() -> tuple[Response, int]:
-    ip = request.remote_addr
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     db_sess = db.create_session()
     user = db_sess.get(User, session['user_id'])
     username = user.username
@@ -520,7 +520,7 @@ def remember_token() -> tuple[Response, int]:
 def login_with_token() -> tuple[Response, int]:
     data = request.get_json()
     db_sess = db.create_session()
-    ip = request.remote_addr
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     username = data['username']
     token = data['token']
     token_to_login = db_sess.query(LoginToken).filter(LoginToken.username == username and LoginToken.ip == ip).first()
