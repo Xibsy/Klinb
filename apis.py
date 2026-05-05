@@ -504,10 +504,17 @@ def remember_token() -> tuple[Response, int]:
     db_sess = db.create_session()
     user = db_sess.get(User, session['user_id'])
     username = user.username
-    LoginToken.create_new_token(username, ip)
-    token = db_sess.query(LoginToken).filter(LoginToken.username == username and LoginToken.ip == ip).first().token
+    token = db_sess.query(LoginToken).filter(LoginToken.username == username and LoginToken.ip == ip).first()
+    if token is not None:
+        return_token = db_sess.query(LoginToken).filter(LoginToken.username == username
+                                                        and LoginToken.ip == ip).first().token
+    else:
+        LoginToken.create_new_token(username, ip)
+        return_token = db_sess.query(LoginToken).filter(LoginToken.username == username
+                                                        and LoginToken.ip == ip).first().token
+
     db_sess.close()
-    return jsonify({'status': 'success', 'token': token}), 200
+    return jsonify({'status': 'success', 'token': return_token}), 200
 
 
 @api.route('/api/login_with_token', methods=['POST'])
