@@ -1564,7 +1564,7 @@ async function saveAdminFriendEdit() {
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Сохранение...'; }
 
     const payload = {
-        target_username: adminEditingFriend.username,
+        target_id: adminEditingFriend.id,
         name, username, discord, telegram, status, show_aaa, bio
     };
 
