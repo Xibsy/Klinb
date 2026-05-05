@@ -524,6 +524,8 @@ def login_with_token() -> tuple[Response, int]:
 
     if token == token_to_login.token:
         user = db_sess.query(User).filter(User.username == username).first()
+        session['user_id'] = user.id
+        session['username'] = user.username
         db_sess.close()
         return jsonify({'status': 'success', 'user': user.to_dict()}), 200
     db_sess.close()
