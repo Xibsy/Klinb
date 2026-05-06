@@ -152,11 +152,11 @@ def add_friend() -> tuple[Response, int]:
     user = db_sess.get(User, session['user_id'])
     friend = db_sess.query(User).filter(User.username == friend_name).first()
     try:
-        a = user.outgoing_requests.split(',')
-        b = str(friend.id)
-        print(a)
-        print(b)
-        in_outgoing = b in a
+        friends = str(friend.id) in user.friends.split(',')
+    except AttributeError:
+        friends = False
+    try:
+        in_outgoing = str(friend.id) in user.outgoing_requests.split(',')
     except AttributeError:
         in_outgoing = False
     user.outgoing_requests = f'{user.outgoing_requests},{friend.to_dict()['id']}' \
@@ -164,7 +164,7 @@ def add_friend() -> tuple[Response, int]:
     friend.incoming_requests = f'{friend.incoming_requests},{user.to_dict()["id"]}' \
         if friend.incoming_requests is not None else f'{user.id}'
 
-    if friend_name and friend_name != user.username and not in_outgoing:
+    if friend_name and friend_name != user.username and not in_outgoing and not friends:
         db_sess.commit()
         db_sess.close()
         return jsonify({"status": "success", "message": f"{friend_name} отправлен запрос в друзья"}), 200
@@ -173,7 +173,10 @@ def add_friend() -> tuple[Response, int]:
         return jsonify({"status": "error", "message": "Зачем себя добавлять?"}), 400
     elif friend_name and friend_name != user.username and in_outgoing:
         db_sess.close()
-        return jsonify({'status': 'error', 'message': 'Запрос уже отправлен!'}), 200
+        return jsonify({'status': 'error', 'message': 'Запрос уже отправлен!'}), 400
+    elif friends:
+        db_sess.close()
+        return jsonify({"status": "error", "message": "Уже в друзьях"}), 400
     return jsonify({"status": "error", "message": "напиши сначала кого добавить"}), 400
 
 
