@@ -38,7 +38,7 @@ let adminEditingFriend = null;     // друг, профиль которого 
 // ─── MAP ──────────────────────────────────────────────────────────────────────
 
 const map = L.map('map', { zoomControl: false, attributionControl: false })
-    .setView([55.7512, 37.6184], 13);
+    .setView([55.164872, 61.391592], 50);
 
 const layers = {
     light: L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'),
