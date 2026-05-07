@@ -10,5 +10,6 @@
 P.S Я грамотей
 P.S2 Я тоже
 P.S3 Ну ладна
-
 <img width="128" height="128" alt="Без названия125_20260429194039" src="https://github.com/user-attachments/assets/b6d4d3d7-57a9-4928-9a61-ee5842f22644" />
+Заценить сайт вы можете по ссылке https://klinb.xibsy-dev.ru
+Для того чтобы получить фотки по хештегу введите запрос - https://klinb.xibsy-dev.ru/api/photos_by_hashtag/хештег?apikey=...&limit=... (или без лимита, тогда получите все)
